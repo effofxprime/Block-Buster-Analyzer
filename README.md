@@ -74,14 +74,14 @@ BlockBusterAnalyzer is a fun and catchy tool to monitor and analyze the sizes of
 1. **Run the script**
 
     ```sh
-    python3 block_size_analyzer.py <lower_height> <upper_height> <endpoint_type> <endpoint_url>
+    python3 blockbusteranalyzer.py <lower_height> <upper_height> <endpoint_type> <endpoint_url>
     ```
 
     Example:
 
     ```sh
-    python3 block_size_analyzer.py 7874000 7875000 "socket" "/dev/shm/jackal/trpc.socket"
-    python3 block_size_analyzer.py 7874000 7875000 "tcp" "https://rpc.jackalprotocol.com:443"
+    python3 blockbusteranalyzer.py 7874000 7875000 "socket" "/dev/shm/jackal/trpc.socket"
+    python3 blockbusteranalyzer.py 7874000 7875000 "tcp" "https://rpc.jackalprotocol.com:443"
     ```
 
 ### Bash Script
@@ -89,20 +89,20 @@ BlockBusterAnalyzer is a fun and catchy tool to monitor and analyze the sizes of
 1. **Make the script executable**
 
     ```sh
-    chmod +x block_size_analyzer.sh
+    chmod +x blockbusteranalyzer.sh
     ```
 
 2. **Run the script**
 
     ```sh
-    ./block_size_analyzer.sh <lower_height> <upper_height> <endpoint_type> <endpoint_url>
+    ./blockbusteranalyzer.sh <lower_height> <upper_height> <endpoint_type> <endpoint_url>
     ```
 
     Example:
 
     ```sh
-    ./block_size_analyzer.sh 7874000 7875000 "socket" "/dev/shm/jackal/trpc.socket"
-    ./block_size_analyzer.sh 7874000 7875000 "tcp" "https://rpc.jackalprotocol.com:443"
+    ./blockbusteranalyzer.sh 7874000 7875000 "socket" "/dev/shm/jackal/trpc.socket"
+    ./blockbusteranalyzer.sh 7874000 7875000 "tcp" "https://rpc.jackalprotocol.com:443"
     ```
 
 ## Output
