@@ -6,7 +6,7 @@
 # @Twitter - https://twitter.com/ErialosOfAstora
 # @Date - 2024-06-06 15:19:00 UTC
 # @Last_Modified_By - Jonathan - Erialos
-# @Last_Modified_Time - 2024-06-08 00:46:00 UTC
+# @Last_Modified_Time - 2024-06-08 01:10:00 UTC
 # @Description - A tool to analyze block sizes in a blockchain.
 
 import requests
@@ -22,6 +22,7 @@ from tabulate import tabulate
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import matplotlib.patches as mpatches
+import numpy as np
 import signal
 import threading
 
@@ -247,7 +248,7 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
     table = [
         ["1MB to 3MB", len(yellow_blocks), f"{calculate_avg([b['size'] for b in yellow_blocks]):.2f}"],
         ["3MB to 5MB", len(red_blocks), f"{calculate_avg([b['size'] for b in red_blocks]):.2f}"],
-        ["Greater than 5MB", len(magenta_blocks), f"{calculate_avg([b['size'] for b in magenta_blocks]):.2f}"]
+        ["Greater than 5MB", len(magenta_blocks), f"{calculate_avg([b['size'] for b in magenta_blocks])::.2f}"]
     ]
 
     print(tabulate(table, headers=["Block Size Range", "Count", "Average Size (MB)"], tablefmt="pretty"))
@@ -267,39 +268,52 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
 
         # Grouped bar chart
         fig, ax = plt.subplots(figsize=(38, 20))  # Increase the figure size
-        ax.bar(times, sizes, color=colors)
-        ax.set_title('Block Size Over Time (Grouped Bar Chart)', fontsize=24)
-        ax.set_xlabel('Time', fontsize=20)
-        ax.set_ylabel('Block Size (MB)', fontsize=20)
-        ax.tick_params(axis='x', rotation=45, labelsize=16)
-        ax.tick_params(axis='y', labelsize=16)
-        ax.legend(handles=legend_patches, loc='upper right', fontsize=16)
-        ax.xaxis.set_major_locator(mdates.DayLocator())
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+
+        unique_days = list(sorted(set([dt.date() for dt in times])))
+        bar_width = 0.2
+        bar_positions = np.arange(len(unique_days))
+
+        green_sizes = [sizes[i] if colors[i] == 'green' else 0 for i in range(len(sizes))]
+        yellow_sizes = [sizes[i] if colors[i] == 'yellow' else 0 for i in range(len(sizes))]
+        red_sizes = [sizes[i] if colors[i] == 'red' else 0 for i in range(len(sizes))]
+        magenta_sizes = [sizes[i] if colors[i] == 'magenta' else 0 for i in range(len(sizes))]
+
+        ax.bar(bar_positions - bar_width * 1.5, green_sizes, bar_width, label='< 1MB', color='green')
+        ax.bar(bar_positions - bar_width * 0.5, yellow_sizes, bar_width, label='1MB to 3MB', color='yellow')
+        ax.bar(bar_positions + bar_width * 0.5, red_sizes, bar_width, label='3MB to 5MB', color='red')
+        ax.bar(bar_positions + bar_width * 1.5, magenta_sizes, bar_width, label='> 5MB', color='magenta')
+
+        ax.set_title('Block Size Over Time (Grouped Bar Chart)', fontsize=28)
+        ax.set_xlabel('Time', fontsize=24)
+        ax.set_ylabel('Block Size (MB)', fontsize=24)
+        ax.set_xticks(bar_positions)
+        ax.set_xticklabels([str(day) for day in unique_days], rotation=45, ha='right', fontsize=20)
+        ax.tick_params(axis='y', labelsize=20)
+        ax.legend(loc='upper right', fontsize=20)
         plt.tight_layout()
         plt.savefig(f"{output_image_file_base}_bar_chart.png")
 
         # Scatter plot
         fig, ax = plt.subplots(figsize=(38, 20))  # Increase the figure size
         ax.scatter(times, sizes, color=colors)
-        ax.set_title('Block Size Over Time (Scatter Plot)', fontsize=24)
-        ax.set_xlabel('Time', fontsize=20)
-        ax.set_ylabel('Block Size (MB)', fontsize=20)
-        ax.tick_params(axis='x', rotation=45, labelsize=16)
-        ax.tick_params(axis='y', labelsize=16)
-        ax.legend(handles=legend_patches, loc='upper right', fontsize=16)
+        ax.set_title('Block Size Over Time (Scatter Plot)', fontsize=28)
+        ax.set_xlabel('Time', fontsize=24)
+        ax.set_ylabel('Block Size (MB)', fontsize=24)
+        ax.tick_params(axis='x', rotation=45, labelsize=20)
+        ax.tick_params(axis='y', labelsize=20)
+        ax.legend(handles=legend_patches, loc='upper right', fontsize=20)
         plt.tight_layout()
         plt.savefig(f"{output_image_file_base}_scatter_plot.png")
 
         # Histogram plot
         fig, ax = plt.subplots(figsize=(38, 20))  # Increase the figure size
         ax.hist(sizes, bins=50, color='b', edgecolor='black')
-        ax.set_title('Block Size Distribution (Histogram)', fontsize=24)
-        ax.set_xlabel('Block Size (MB)', fontsize=20)
-        ax.set_ylabel('Frequency', fontsize=20)
-        ax.legend(handles=legend_patches, loc='upper right', fontsize=16)
-        ax.tick_params(axis='x', labelsize=16)
-        ax.tick_params(axis='y', labelsize=16)
+        ax.set_title('Block Size Distribution (Histogram)', fontsize=28)
+        ax.set_xlabel('Block Size (MB)', fontsize=24)
+        ax.set_ylabel('Frequency', fontsize=24)
+        ax.legend(handles=legend_patches, loc='upper right', fontsize=20)
+        ax.tick_params(axis='x', labelsize=20)
+        ax.tick_params(axis='y', labelsize=20)
         plt.tight_layout()
         plt.savefig(f"{output_image_file_base}_histogram.png")
     else:
