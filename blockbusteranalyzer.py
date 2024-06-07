@@ -199,20 +199,11 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
     # Plotting the graphs
     times = [datetime.fromisoformat(b['time']) for b in block_data]
     sizes = [b['size'] for b in block_data]
-
-    # Simple line plot
-    plt.figure(figsize=(10, 5))
-    plt.plot(times, sizes, marker='o', linestyle='-', color='b')
-    plt.title('Block Size Over Time (Line Plot)')
-    plt.xlabel('Time')
-    plt.ylabel('Block Size (MB)')
-    plt.xticks(rotation=45)
-    plt.tight_layout()
-    plt.savefig(f"{output_image_file_base}_line_plot.png")
+    colors = ['green' if size < 1 else 'yellow' if size < 3 else 'red' if size < 5 else 'magenta' for size in sizes]
 
     # Grouped bar chart
     plt.figure(figsize=(10, 5))
-    plt.bar(times, sizes, color='b')
+    plt.bar(times, sizes, color=colors)
     plt.title('Block Size Over Time (Grouped Bar Chart)')
     plt.xlabel('Time')
     plt.ylabel('Block Size (MB)')
@@ -222,13 +213,22 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
 
     # Scatter plot
     plt.figure(figsize=(10, 5))
-    plt.scatter(times, sizes, color='b')
+    plt.scatter(times, sizes, color=colors)
     plt.title('Block Size Over Time (Scatter Plot)')
     plt.xlabel('Time')
     plt.ylabel('Block Size (MB)')
     plt.xticks(rotation=45)
     plt.tight_layout()
     plt.savefig(f"{output_image_file_base}_scatter_plot.png")
+
+    # Histogram plot
+    plt.figure(figsize=(10, 5))
+    plt.hist(sizes, bins=50, color='b', edgecolor='black')
+    plt.title('Block Size Distribution (Histogram)')
+    plt.xlabel('Block Size (MB)')
+    plt.ylabel('Frequency')
+    plt.tight_layout()
+    plt.savefig(f"{output_image_file_base}_histogram.png")
 
 if __name__ == "__main__":
     if len(sys.argv) != 5:
