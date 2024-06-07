@@ -251,48 +251,54 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
 
     print(tabulate(table, headers=["Block Size Range", "Count", "Average Size (MB)"], tablefmt="pretty"))
 
+    # Debugging: Check data to be plotted
+    print(f"Block data: {block_data}")  # Debugging output
+
     # Plotting the graphs
-    times = [datetime.fromisoformat(b['time']) for b in block_data]
-    sizes = [b['size'] for b in block_data]
-    colors = ['green' if size < 1 else 'yellow' if size < 3 else 'red' if size < 5 else 'magenta' for size in sizes]
+    if block_data:
+        times = [datetime.fromisoformat(b['time']) for b in block_data]
+        sizes = [b['size'] for b in block_data]
+        colors = ['green' if size < 1 else 'yellow' if size < 3 else 'red' if size < 5 else 'magenta' for size in sizes]
 
-    legend_patches = [
-        mpatches.Patch(color='green', label='< 1MB'),
-        mpatches.Patch(color='yellow', label='1MB to 3MB'),
-        mpatches.Patch(color='red', label='3MB to 5MB'),
-        mpatches.Patch(color='magenta', label='> 5MB')
-    ]
+        legend_patches = [
+            mpatches.Patch(color='green', label='< 1MB'),
+            mpatches.Patch(color='yellow', label='1MB to 3MB'),
+            mpatches.Patch(color='red', label='3MB to 5MB'),
+            mpatches.Patch(color='magenta', label='> 5MB')
+        ]
 
-    # Grouped bar chart
-    plt.figure(figsize=(10, 5))
-    plt.bar(times, sizes, color=colors)
-    plt.title('Block Size Over Time (Grouped Bar Chart)')
-    plt.xlabel('Time')
-    plt.ylabel('Block Size (MB)')
-    plt.xticks(rotation=45)
-    plt.legend(handles=legend_patches)
-    plt.tight_layout()
-    plt.savefig(f"{output_image_file_base}_bar_chart.png")
+        # Grouped bar chart
+        plt.figure(figsize=(10, 5))
+        plt.bar(times, sizes, color=colors)
+        plt.title('Block Size Over Time (Grouped Bar Chart)')
+        plt.xlabel('Time')
+        plt.ylabel('Block Size (MB)')
+        plt.xticks(rotation=45)
+        plt.legend(handles=legend_patches)
+        plt.tight_layout()
+        plt.savefig(f"{output_image_file_base}_bar_chart.png")
 
-    # Scatter plot
-    plt.figure(figsize=(10, 5))
-    plt.scatter(times, sizes, color=colors)
-    plt.title('Block Size Over Time (Scatter Plot)')
-    plt.xlabel('Time')
-    plt.ylabel('Block Size (MB)')
-    plt.xticks(rotation=45)
-    plt.legend(handles=legend_patches)
-    plt.tight_layout()
-    plt.savefig(f"{output_image_file_base}_scatter_plot.png")
+        # Scatter plot
+        plt.figure(figsize=(10, 5))
+        plt.scatter(times, sizes, color=colors)
+        plt.title('Block Size Over Time (Scatter Plot)')
+        plt.xlabel('Time')
+        plt.ylabel('Block Size (MB)')
+        plt.xticks(rotation=45)
+        plt.legend(handles=legend_patches)
+        plt.tight_layout()
+        plt.savefig(f"{output_image_file_base}_scatter_plot.png")
 
-    # Histogram plot
-    plt.figure(figsize=(10, 5))
-    plt.hist(sizes, bins=50, color='b', edgecolor='black')
-    plt.title('Block Size Distribution (Histogram)')
-    plt.xlabel('Block Size (MB)')
-    plt.ylabel('Frequency')
-    plt.tight_layout()
-    plt.savefig(f"{output_image_file_base}_histogram.png")
+        # Histogram plot
+        plt.figure(figsize=(10, 5))
+        plt.hist(sizes, bins=50, color='b', edgecolor='black')
+        plt.title('Block Size Distribution (Histogram)')
+        plt.xlabel('Block Size (MB)')
+        plt.ylabel('Frequency')
+        plt.tight_layout()
+        plt.savefig(f"{output_image_file_base}_histogram.png")
+    else:
+        print("No data to plot.")
 
 if __name__ == "__main__":
     if len(sys.argv) != 5:
