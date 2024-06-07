@@ -6,7 +6,7 @@
 # @Twitter - https://twitter.com/ErialosOfAstora
 # @Date - 2024-06-06 15:19:00 UTC
 # @Last_Modified_By - Jonathan - Erialos
-# @Last_Modified_Time - 2024-06-07 15:24:00 UTC
+# @Last_Modified_Time - 2024-06-08 15:24:00 UTC
 # @Description - A tool to analyze block sizes in a blockchain.
 
 import requests
@@ -21,6 +21,7 @@ from colorama import Fore, Style, init
 from tabulate import tabulate
 import matplotlib.pyplot as plt
 import signal
+import threading
 
 # Initialize colorama
 init(autoreset=True)
@@ -54,10 +55,13 @@ def calculate_avg(sizes):
     return sum(sizes) / len(sizes) if sizes else 0
 
 def parse_timestamp(timestamp):
-    try:
-        return datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S.%fZ")
-    except ValueError:
-        return datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S.%f%z")
+    formats = ["%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%S.%f%z", "%Y-%m-%dT%H:%M:%S.%f"]
+    for fmt in formats:
+        try:
+            return datetime.strptime(timestamp, fmt)
+        except ValueError:
+            continue
+    raise ValueError(f"time data '{timestamp}' does not match any known format")
 
 def process_block(height, endpoint_type, endpoint_url):
     block_info = fetch_block_info(endpoint_type, endpoint_url, height)
@@ -97,39 +101,44 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
 
     print("\n" + "="*40 + "\n")
 
-    with ThreadPoolExecutor(max_workers=10) as executor:
-        future_to_height = {executor.submit(process_block, height, endpoint_type, endpoint_url): height for height in range(lower_height, upper_height + 1)}
+    executor = ThreadPoolExecutor(max_workers=10)
+    future_to_height = {executor.submit(process_block, height, endpoint_type, endpoint_url): height for height in range(lower_height, upper_height + 1)}
 
-        try:
-            for future in as_completed(future_to_height):
-                height = future_to_height[future]
-                try:
-                    result = future.result()
-                    if result is None:
-                        continue
+    try:
+        for future in as_completed(future_to_height):
+            height = future_to_height[future]
+            try:
+                result = future.result()
+                if result is None:
+                    continue
 
-                    height, block_size_mb, block_time = result
-                    block_data.append({"height": height, "size": block_size_mb, "time": block_time.isoformat()})
+                height, block_size_mb, block_time = result
+                block_data.append({"height": height, "size": block_size_mb, "time": block_time.isoformat()})
 
-                    if block_size_mb > 5:
-                        magenta_blocks.append({"height": height, "size": block_size_mb, "time": block_time.isoformat()})
-                    elif block_size_mb > 3:
-                        red_blocks.append({"height": height, "size": block_size_mb, "time": block_time.isoformat()})
-                    elif block_size_mb > 1:
-                        yellow_blocks.append({"height": height, "size": block_size_mb, "time": block_time.isoformat()})
+                if block_size_mb > 5:
+                    magenta_blocks.append({"height": height, "size": block_size_mb, "time": block_time.isoformat()})
+                elif block_size_mb > 3:
+                    red_blocks.append({"height": height, "size": block_size_mb, "time": block_time.isoformat()})
+                elif block_size_mb > 1:
+                    yellow_blocks.append({"height": height, "size": block_size_mb, "time": block_time.isoformat()})
 
-                except Exception as e:
-                    print(f"Error processing block {height}: {e}")
+            except Exception as e:
+                print(f"Error processing block {height}: {e}")
 
-                completed = height - lower_height + 1
-                progress = (completed / total_blocks) * 100
-                elapsed_time = time.time() - start_script_time
-                estimated_total_time = elapsed_time / completed * total_blocks
-                time_left = estimated_total_time - elapsed_time
-                print(f"Progress: {progress:.2f}% ({completed}/{total_blocks}) - Estimated time left: {timedelta(seconds=int(time_left))}", end='\r')
-        except KeyboardInterrupt:
-            print("\nProcess interrupted. Exiting gracefully...")
-            sys.exit(0)
+            completed = height - lower_height + 1
+            progress = (completed / total_blocks) * 100
+            elapsed_time = time.time() - start_script_time
+            estimated_total_time = elapsed_time / completed * total_blocks
+            time_left = estimated_total_time - elapsed_time
+            print(f"Progress: {progress:.2f}% ({completed}/{total_blocks}) - Estimated time left: {timedelta(seconds=int(time_left))}", end='\r')
+    except KeyboardInterrupt:
+        executor.shutdown(wait=False)
+        for future in future_to_height:
+            future.cancel()
+        print("\nProcess interrupted. Exiting gracefully...")
+        sys.exit(0)
+
+    executor.shutdown(wait=True)
 
     result = {
         "connection_type": endpoint_type,
@@ -168,7 +177,7 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
     table = [
         ["1MB to 3MB", len(yellow_blocks), f"{calculate_avg([b['size'] for b in yellow_blocks]):.2f}"],
         ["3MB to 5MB", len(red_blocks), f"{calculate_avg([b['size'] for b in red_blocks]):.2f}"],
-        ["Greater than 5MB", len(magenta_blocks), f"{calculate_avg([b['size'] for b in magenta_blocks])::.2f}"]
+        ["Greater than 5MB", len(magenta_blocks), f"{calculate_avg([b['size'] for b in magenta_blocks]):.2f}"]
     ]
 
     print(tabulate(table, headers=["Block Size Range", "Count", "Average Size (MB)"], tablefmt="pretty"))
