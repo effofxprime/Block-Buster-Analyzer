@@ -6,7 +6,7 @@
 # @Twitter - https://twitter.com/ErialosOfAstora
 # @Date - 2024-06-06 15:19:00 UTC
 # @Last_Modified_By - Jonathan - Erialos
-# @Last_Modified_Time - 2024-06-08 17:24:00 UTC
+# @Last_Modified_Time - 2024-06-09 17:24:00 UTC
 # @Description - A tool to analyze block sizes in a blockchain.
 
 import requests
@@ -56,19 +56,24 @@ def fetch_block_info(endpoint_type, endpoint_url, height):
     except requests.RequestException as e:
         return None
 
-def fetch_latest_height(endpoint_type, endpoint_url):
+def find_lowest_height(endpoint_type, endpoint_url):
     try:
         if endpoint_type == "socket":
             session = requests_unixsocket.Session()
-            encoded_url = f"http+unix://{quote_plus(endpoint_url)}/block"
+            encoded_url = f"http+unix://{quote_plus(endpoint_url)}/block?height=1"
             response = session.get(encoded_url, timeout=10)
         else:
-            response = requests.get(f"{endpoint_url}/block", timeout=10)
+            response = requests.get(f"{endpoint_url}/block?height=1", timeout=10)
             response.raise_for_status()
         block_info = response.json()
-        return int(block_info['result']['block']['header']['height'])
+        if 'error' in block_info and 'data' in block_info['error']:
+            data_message = block_info['error']['data']
+            if "lowest height is" in data_message:
+                return int(data_message.split("lowest height is")[1].strip())
     except requests.RequestException as e:
         return None
+
+    return 1  # Return 1 if height 1 is available or no error is found
 
 def calculate_avg(sizes):
     return sum(sizes) / len(sizes) if sizes else 0
@@ -108,18 +113,18 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
     global executor
     print("\nChecking the earliest available block height...")
 
-    latest_height = fetch_latest_height(endpoint_type, endpoint_url)
-    if latest_height is None:
-        print("Failed to fetch the latest block height. Exiting.")
+    lowest_height = find_lowest_height(endpoint_type, endpoint_url)
+    if lowest_height is None:
+        print("Failed to determine the earliest block height. Exiting.")
         sys.exit(1)
 
-    if lower_height > latest_height:
-        print(f"The specified lower height {lower_height} is greater than the latest height {latest_height}. Exiting.")
-        sys.exit(1)
+    if lower_height < lowest_height:
+        print(f"The specified lower height {lower_height} is less than the earliest available height {lowest_height}. Adjusting to {lowest_height}.")
+        lower_height = lowest_height
 
-    if not fetch_block_info(endpoint_type, endpoint_url, lower_height):
-        print(f"The specified lower height {lower_height} does not exist. Adjusting to the earliest available height {latest_height}.")
-        lower_height = latest_height
+    if lower_height > upper_height:
+        print(f"The specified lower height {lower_height} is greater than the specified upper height {upper_height}. Exiting.")
+        sys.exit(1)
 
     print("\nFetching block information. This may take a while for large ranges. Please wait...")
 
