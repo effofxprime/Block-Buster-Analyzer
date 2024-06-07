@@ -66,11 +66,14 @@ def find_lowest_height(endpoint_type, endpoint_url):
             response = requests.get(f"{endpoint_url}/block?height=1", timeout=10)
             response.raise_for_status()
         block_info = response.json()
+        print(f"Block info response: {block_info}")  # Debugging output
         if 'error' in block_info and 'data' in block_info['error']:
             data_message = block_info['error']['data']
+            print(f"Data message: {data_message}")  # Debugging output
             if "lowest height is" in data_message:
                 return int(data_message.split("lowest height is")[1].strip())
     except requests.RequestException as e:
+        print(f"RequestException: {e}")  # Debugging output
         return None
 
     return 1  # Return 1 if height 1 is available or no error is found
@@ -225,7 +228,7 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
 
     table = [
         ["1MB to 3MB", len(yellow_blocks), f"{calculate_avg([b['size'] for b in yellow_blocks]):.2f}"],
-        ["3MB to 5MB", len(red_blocks), f"{calculate_avg([b['size'] for b in red_blocks])::.2f}"],
+        ["3MB to 5MB", len(red_blocks), f"{calculate_avg([b['size'] for b in red_blocks]):.2f}"],
         ["Greater than 5MB", len(magenta_blocks), f"{calculate_avg([b['size'] for b in magenta_blocks]):.2f}"]
     ]
 
