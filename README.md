@@ -21,6 +21,7 @@ BlockBusterAnalyzer is a fun and catchy tool to monitor and analyze the sizes of
 
 - `curl`
 - `jq`
+- `bc`
 
 ## Installation
 
@@ -52,19 +53,19 @@ BlockBusterAnalyzer is a fun and catchy tool to monitor and analyze the sizes of
 
 ### Bash
 
-1. **Install `curl` and `jq`**
+1. **Install `curl`, `jq`, and `bc`**
 
     On Ubuntu/Debian:
 
     ```sh
     sudo apt-get update
-    sudo apt-get install curl jq
+    sudo apt-get install curl jq bc
     ```
 
     On CentOS/RHEL:
 
     ```sh
-    sudo yum install curl jq
+    sudo yum install curl jq bc
     ```
 
 ## Usage

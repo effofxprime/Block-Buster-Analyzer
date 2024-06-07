@@ -4,7 +4,7 @@
 # @Website - https://thesilverfox.pro
 # @GitHub - https://github.com/effofxprime
 # @Twitter - https://twitter.com/ErialosOfAstora
-# @Date - 2023-08-04 15:19:53 UTC
+# @Date - 2024-06-06 15:19:00 UTC
 # @Last_Modified_By - Jonathan - Erialos
 # @Last_Modified_Time - 2024-06-07 15:24:00 UTC
 # @Description - A tool to analyze block sizes in a blockchain.
@@ -18,7 +18,7 @@ ENDPOINT_URL=$4   # For example: "/dev/shm/jackal/trpc.socket" or "http://localh
 # Get the current date and time to create a unique output file name
 START_TIME=$(date -u +"%s")
 CURRENT_DATE=$(date -u +"%B %A %d, %Y %H:%M:%S UTC")
-OUTPUT_FILE="block_sizes_${LOWER_HEIGHT}_to_${UPPER_HEIGHT}_$(date +"%Y%m%d_%H%M%S").json"
+OUTPUT_FILE="block_sizes_${LOWER_HEIGHT}_to_${UPPER_HEIGHT}_$(date -u +"%Y%m%d_%H%M%S").json"
 
 # Calculate the total number of blocks
 TOTAL_BLOCKS=$((UPPER_HEIGHT - LOWER_HEIGHT + 1))
@@ -90,7 +90,7 @@ do
   # Calculate and display progress
   COMPLETED=$((height - LOWER_HEIGHT + 1))
   PROGRESS=$(echo "scale=2; ($COMPLETED / $TOTAL_BLOCKS) * 100" | bc)
-  ELAPSED_TIME=$(($(date +%s) - START_SCRIPT_TIME))
+  ELAPSED_TIME=$(($(date +%s) - $START_SCRIPT_TIME))
   ESTIMATED_TOTAL_TIME=$(echo "scale=2; $ELAPSED_TIME / $COMPLETED * $TOTAL_BLOCKS" | bc)
   TIME_LEFT=$(echo "$ESTIMATED_TOTAL_TIME - $ELAPSED_TIME" | bc)
   echo -ne "Progress: $PROGRESS% ($COMPLETED/$TOTAL_BLOCKS) - Estimated time left: $(date -u -d @${TIME_LEFT} +%H:%M:%S)\r"

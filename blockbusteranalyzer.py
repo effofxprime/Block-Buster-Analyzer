@@ -4,7 +4,7 @@
 # @Website - https://thesilverfox.pro
 # @GitHub - https://github.com/effofxprime
 # @Twitter - https://twitter.com/ErialosOfAstora
-# @Date - 2023-08-04 15:19:53 UTC
+# @Date - 2024-06-06 15:19:53 UTC
 # @Last_Modified_By - Jonathan - Erialos
 # @Last_Modified_Time - 2024-06-07 15:24:00 UTC
 # @Description - A tool to analyze block sizes in a blockchain.
