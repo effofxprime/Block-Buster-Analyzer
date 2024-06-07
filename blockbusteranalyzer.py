@@ -20,6 +20,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from colorama import Fore, Style, init
 from tabulate import tabulate
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 import signal
 import threading
 
@@ -201,6 +202,13 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
     sizes = [b['size'] for b in block_data]
     colors = ['green' if size < 1 else 'yellow' if size < 3 else 'red' if size < 5 else 'magenta' for size in sizes]
 
+    legend_patches = [
+        mpatches.Patch(color='green', label='< 1MB'),
+        mpatches.Patch(color='yellow', label='1MB to 3MB'),
+        mpatches.Patch(color='red', label='3MB to 5MB'),
+        mpatches.Patch(color='magenta', label='> 5MB')
+    ]
+
     # Grouped bar chart
     plt.figure(figsize=(10, 5))
     plt.bar(times, sizes, color=colors)
@@ -208,6 +216,7 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
     plt.xlabel('Time')
     plt.ylabel('Block Size (MB)')
     plt.xticks(rotation=45)
+    plt.legend(handles=legend_patches)
     plt.tight_layout()
     plt.savefig(f"{output_image_file_base}_bar_chart.png")
 
@@ -218,6 +227,7 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
     plt.xlabel('Time')
     plt.ylabel('Block Size (MB)')
     plt.xticks(rotation=45)
+    plt.legend(handles=legend_patches)
     plt.tight_layout()
     plt.savefig(f"{output_image_file_base}_scatter_plot.png")
 
