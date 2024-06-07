@@ -19,6 +19,7 @@ from urllib.parse import quote_plus
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from colorama import Fore, Style, init
 from tabulate import tabulate
+import matplotlib.pyplot as plt
 
 # Initialize colorama
 init(autoreset=True)
@@ -58,7 +59,9 @@ def process_block(height, endpoint_type, endpoint_url):
 
     block_size = len(json.dumps(block_info))
     block_size_mb = block_size / 1048576
-    return (height, block_size_mb)
+
+    block_time = datetime.strptime(block_info['result']['block']['header']['time'], "%Y-%m-%dT%H:%M:%S.%fZ")
+    return (height, block_size_mb, block_time)
 
 def main(lower_height, upper_height, endpoint_type, endpoint_url):
     print("\nFetching block information. This may take a while for large ranges. Please wait...")
@@ -70,6 +73,7 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
     yellow_blocks = []
     red_blocks = []
     magenta_blocks = []
+    block_data = []
 
     total_blocks = upper_height - lower_height + 1
     start_script_time = time.time()
@@ -90,14 +94,15 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
                 if result is None:
                     continue
 
-                height, block_size_mb = result
+                height, block_size_mb, block_time = result
+                block_data.append({"height": height, "size": block_size_mb, "time": block_time.isoformat()})
 
                 if block_size_mb > 5:
-                    magenta_blocks.append({"height": height, "size": block_size_mb})
+                    magenta_blocks.append({"height": height, "size": block_size_mb, "time": block_time.isoformat()})
                 elif block_size_mb > 3:
-                    red_blocks.append({"height": height, "size": block_size_mb})
+                    red_blocks.append({"height": height, "size": block_size_mb, "time": block_time.isoformat()})
                 elif block_size_mb > 1:
-                    yellow_blocks.append({"height": height, "size": block_size_mb})
+                    yellow_blocks.append({"height": height, "size": block_size_mb, "time": block_time.isoformat()})
 
             except Exception as e:
                 print(f"Error processing block {height}: {e}")
@@ -116,6 +121,7 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
         "1MB_to_3MB": yellow_blocks,
         "3MB_to_5MB": red_blocks,
         "greater_than_5MB": magenta_blocks,
+        "block_data": block_data,
         "stats": {
             "1MB_to_3MB": {
                 "count": len(yellow_blocks),
@@ -149,6 +155,20 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
     ]
 
     print(tabulate(table, headers=["Block Size Range", "Count", "Average Size (MB)"], tablefmt="pretty"))
+
+    # Plotting the graph
+    times = [datetime.fromisoformat(b['time']) for b in block_data]
+    sizes = [b['size'] for b in block_data]
+
+    plt.figure(figsize=(10, 5))
+    plt.plot(times, sizes, marker='o', linestyle='-', color='b')
+    plt.title('Block Size Over Time')
+    plt.xlabel('Time')
+    plt.ylabel('Block Size (MB)')
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    plt.savefig(f"block_sizes_{lower_height}_to_{upper_height}_{start_time.strftime('%Y%m%d_%H%M%S')}.png")
+    plt.show()
 
 if __name__ == "__main__":
     if len(sys.argv) != 5:
