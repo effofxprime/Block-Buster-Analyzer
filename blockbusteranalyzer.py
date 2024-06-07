@@ -17,6 +17,11 @@ import sys
 from datetime import datetime, timedelta
 from urllib.parse import quote_plus
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from colorama import Fore, Style, init
+from tabulate import tabulate
+
+# Initialize colorama
+init(autoreset=True)
 
 def check_endpoint(endpoint_type, endpoint_url):
     try:
@@ -56,6 +61,8 @@ def process_block(height, endpoint_type, endpoint_url):
     return (height, block_size_mb)
 
 def main(lower_height, upper_height, endpoint_type, endpoint_url):
+    print("\nFetching block information. This may take a while for large ranges. Please wait...")
+
     start_time = datetime.utcnow()
     current_date = start_time.strftime("%B %A %d, %Y %H:%M:%S UTC")
     output_file = f"block_sizes_{lower_height}_to_{upper_height}_{start_time.strftime('%Y%m%d_%H%M%S')}.json"
@@ -70,6 +77,8 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
     if not check_endpoint(endpoint_type, endpoint_url):
         print("RPC endpoint unreachable. Exiting.")
         sys.exit(1)
+
+    print("\n" + "="*40 + "\n")
 
     with ThreadPoolExecutor(max_workers=10) as executor:
         future_to_height = {executor.submit(process_block, height, endpoint_type, endpoint_url): height for height in range(lower_height, upper_height + 1)}
@@ -131,10 +140,15 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
     print(f"\nBlock sizes have been written to {output_file}")
     print(f"Script completed in: {timedelta(seconds=int(total_duration))}")
 
-    print("Number of blocks in each group:")
-    print(f"1MB to 3MB: {len(yellow_blocks)}")
-    print(f"3MB to 5MB: {len(red_blocks)}")
-    print(f"Greater than 5MB: {len(magenta_blocks)}")
+    print("\nNumber of blocks in each group:")
+
+    table = [
+        ["1MB to 3MB", len(yellow_blocks), f"{calculate_avg([b['size'] for b in yellow_blocks]):.2f}"],
+        ["3MB to 5MB", len(red_blocks), f"{calculate_avg([b['size'] for b in red_blocks]):.2f}"],
+        ["Greater than 5MB", len(magenta_blocks), f"{calculate_avg([b['size'] for b in magenta_blocks]):.2f}"]
+    ]
+
+    print(tabulate(table, headers=["Block Size Range", "Count", "Average Size (MB)"], tablefmt="pretty"))
 
 if __name__ == "__main__":
     if len(sys.argv) != 5:
