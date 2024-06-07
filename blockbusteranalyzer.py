@@ -198,7 +198,6 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
     plt.xticks(rotation=45)
     plt.tight_layout()
     plt.savefig(output_image_file)
-    plt.show()
 
 if __name__ == "__main__":
     if len(sys.argv) != 5:
