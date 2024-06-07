@@ -53,6 +53,12 @@ def fetch_block_info(endpoint_type, endpoint_url, height):
 def calculate_avg(sizes):
     return sum(sizes) / len(sizes) if sizes else 0
 
+def parse_timestamp(timestamp):
+    try:
+        return datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S.%fZ")
+    except ValueError:
+        return datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S.%f%z")
+
 def process_block(height, endpoint_type, endpoint_url):
     block_info = fetch_block_info(endpoint_type, endpoint_url, height)
     if block_info is None:
@@ -61,7 +67,7 @@ def process_block(height, endpoint_type, endpoint_url):
     block_size = len(json.dumps(block_info))
     block_size_mb = block_size / 1048576
 
-    block_time = datetime.strptime(block_info['result']['block']['header']['time'], "%Y-%m-%dT%H:%M:%S.%fZ")
+    block_time = parse_timestamp(block_info['result']['block']['header']['time'])
     return (height, block_size_mb, block_time)
 
 def signal_handler(sig, frame):
@@ -162,7 +168,7 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
     table = [
         ["1MB to 3MB", len(yellow_blocks), f"{calculate_avg([b['size'] for b in yellow_blocks]):.2f}"],
         ["3MB to 5MB", len(red_blocks), f"{calculate_avg([b['size'] for b in red_blocks]):.2f}"],
-        ["Greater than 5MB", len(magenta_blocks), f"{calculate_avg([b['size'] for b in magenta_blocks]):.2f}"]
+        ["Greater than 5MB", len(magenta_blocks), f"{calculate_avg([b['size'] for b in magenta_blocks])::.2f}"]
     ]
 
     print(tabulate(table, headers=["Block Size Range", "Count", "Average Size (MB)"], tablefmt="pretty"))
