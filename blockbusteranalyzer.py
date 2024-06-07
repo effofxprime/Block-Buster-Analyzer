@@ -6,7 +6,7 @@
 # @Twitter - https://twitter.com/ErialosOfAstora
 # @Date - 2024-06-06 15:19:00 UTC
 # @Last_Modified_By - Jonathan - Erialos
-# @Last_Modified_Time - 2024-06-08 15:24:00 UTC
+# @Last_Modified_Time - 2024-06-08 16:24:00 UTC
 # @Description - A tool to analyze block sizes in a blockchain.
 
 import requests
@@ -84,6 +84,7 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
     start_time = datetime.utcnow()
     current_date = start_time.strftime("%B %A %d, %Y %H:%M:%S UTC")
     output_file = f"block_sizes_{lower_height}_to_{upper_height}_{start_time.strftime('%Y%m%d_%H%M%S')}.json"
+    output_image_file = f"block_sizes_{lower_height}_to_{upper_height}_{start_time.strftime('%Y%m%d_%H%M%S')}.png"
 
     yellow_blocks = []
     red_blocks = []
@@ -191,7 +192,7 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
     plt.ylabel('Block Size (MB)')
     plt.xticks(rotation=45)
     plt.tight_layout()
-    plt.savefig(f"block_sizes_{lower_height}_to_{upper_height}_{start_time.strftime('%Y%m%d_%H%M%S')}.png")
+    plt.savefig(output_image_file)
     plt.show()
 
 if __name__ == "__main__":

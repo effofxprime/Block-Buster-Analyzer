@@ -9,6 +9,9 @@ BlockBusterAnalyzer is a fun and catchy tool to monitor and analyze the sizes of
 - Supports both Unix sockets and TCP endpoints
 - Generates a JSON report with the results
 - Provides progress updates during execution, including estimated time left and total duration
+- Uses multithreading (Python) and parallel processing (Bash) to improve performance for large block ranges
+- Pretty console output with colors and table formatting
+- Plots a graph of block size over time
 
 ## Dependencies
 
@@ -16,6 +19,10 @@ BlockBusterAnalyzer is a fun and catchy tool to monitor and analyze the sizes of
 
 - `requests`
 - `requests-unixsocket`
+- `colorama`
+- `tabulate`
+- `matplotlib`
+- `concurrent.futures` (standard library, no extra installation required)
 
 ### Bash
 
@@ -32,7 +39,7 @@ BlockBusterAnalyzer is a fun and catchy tool to monitor and analyze the sizes of
 1. **Install Python dependencies**
 
     ```sh
-    pip install requests requests-unixsocket
+    pip install requests requests-unixsocket colorama tabulate matplotlib
     ```
 
 2. **Create a virtual environment (optional but recommended)**
@@ -48,7 +55,7 @@ BlockBusterAnalyzer is a fun and catchy tool to monitor and analyze the sizes of
 
     ```sh
     sudo apt-get update
-    sudo apt-get install python3-requests python3-requests-unixsocket
+    sudo apt-get install python3-requests python3-requests-unixsocket python3-colorama python3-tabulate python3-matplotlib
     ```
 
 ### Bash
@@ -109,6 +116,8 @@ BlockBusterAnalyzer is a fun and catchy tool to monitor and analyze the sizes of
 ## Output
 
 The scripts will generate a JSON file with a name in the format `block_sizes_<lower_height>_to_<upper_height>_<current_date>.json` containing the block sizes categorized into the specified groups. The file will be saved in the current directory.
+
+Additionally, a graph of block size over time will be saved as a PNG file.
 
 ## Contributing
 
