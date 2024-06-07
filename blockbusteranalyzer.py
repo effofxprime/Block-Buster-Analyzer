@@ -6,7 +6,7 @@
 # @Twitter - https://twitter.com/ErialosOfAstora
 # @Date - 2024-06-06 15:19:00 UTC
 # @Last_Modified_By - Jonathan - Erialos
-# @Last_Modified_Time - 2024-06-08 16:24:00 UTC
+# @Last_Modified_Time - 2024-06-08 17:24:00 UTC
 # @Description - A tool to analyze block sizes in a blockchain.
 
 import requests
@@ -21,12 +21,14 @@ from colorama import Fore, Style, init
 from tabulate import tabulate
 import matplotlib.pyplot as plt
 import signal
+import threading
 
 # Initialize colorama
 init(autoreset=True)
 
 # Global variable to manage executor shutdown
 executor = None
+shutdown_event = threading.Event()
 
 def check_endpoint(endpoint_type, endpoint_url):
     try:
@@ -65,6 +67,9 @@ def parse_timestamp(timestamp):
         raise ValueError(f"time data '{timestamp}' does not match any known format")
 
 def process_block(height, endpoint_type, endpoint_url):
+    if shutdown_event.is_set():
+        return None
+
     block_info = fetch_block_info(endpoint_type, endpoint_url, height)
     if block_info is None:
         return None
@@ -77,6 +82,7 @@ def process_block(height, endpoint_type, endpoint_url):
 
 def signal_handler(sig, frame):
     print("\nProcess interrupted. Exiting gracefully...")
+    shutdown_event.set()
     if executor:
         executor.shutdown(wait=False)
     sys.exit(0)
@@ -90,7 +96,7 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
     start_time = datetime.utcnow()
     current_date = start_time.strftime("%B %A %d, %Y %H:%M:%S UTC")
     output_file = f"block_sizes_{lower_height}_to_{upper_height}_{start_time.strftime('%Y%m%d_%H%M%S')}.json"
-    output_image_file = f"block_sizes_{lower_height}_to_{upper_height}_{start_time.strftime('%Y%m%d_%H%M%S')}.png"
+    output_image_file_base = f"block_sizes_{lower_height}_to_{upper_height}_{start_time.strftime('%Y%m%d_%H%M%S')}"
 
     yellow_blocks = []
     red_blocks = []
@@ -111,6 +117,9 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
 
     try:
         for future in as_completed(future_to_height):
+            if shutdown_event.is_set():
+                break
+
             height = future_to_height[future]
             try:
                 result = future.result()
@@ -137,6 +146,7 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
             time_left = estimated_total_time - elapsed_time
             print(f"Progress: {progress:.2f}% ({completed}/{total_blocks}) - Estimated time left: {timedelta(seconds=int(time_left))}", end='\r')
     except KeyboardInterrupt:
+        shutdown_event.set()
         if executor:
             executor.shutdown(wait=False)
         print("\nProcess interrupted. Exiting gracefully...")
@@ -186,18 +196,39 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
 
     print(tabulate(table, headers=["Block Size Range", "Count", "Average Size (MB)"], tablefmt="pretty"))
 
-    # Plotting the graph
+    # Plotting the graphs
     times = [datetime.fromisoformat(b['time']) for b in block_data]
     sizes = [b['size'] for b in block_data]
 
+    # Simple line plot
     plt.figure(figsize=(10, 5))
     plt.plot(times, sizes, marker='o', linestyle='-', color='b')
-    plt.title('Block Size Over Time')
+    plt.title('Block Size Over Time (Line Plot)')
     plt.xlabel('Time')
     plt.ylabel('Block Size (MB)')
     plt.xticks(rotation=45)
     plt.tight_layout()
-    plt.savefig(output_image_file)
+    plt.savefig(f"{output_image_file_base}_line_plot.png")
+
+    # Grouped bar chart
+    plt.figure(figsize=(10, 5))
+    plt.bar(times, sizes, color='b')
+    plt.title('Block Size Over Time (Grouped Bar Chart)')
+    plt.xlabel('Time')
+    plt.ylabel('Block Size (MB)')
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    plt.savefig(f"{output_image_file_base}_bar_chart.png")
+
+    # Scatter plot
+    plt.figure(figsize=(10, 5))
+    plt.scatter(times, sizes, color='b')
+    plt.title('Block Size Over Time (Scatter Plot)')
+    plt.xlabel('Time')
+    plt.ylabel('Block Size (MB)')
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    plt.savefig(f"{output_image_file_base}_scatter_plot.png")
 
 if __name__ == "__main__":
     if len(sys.argv) != 5:
