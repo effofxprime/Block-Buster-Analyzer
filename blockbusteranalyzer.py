@@ -251,9 +251,6 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
 
     print(tabulate(table, headers=["Block Size Range", "Count", "Average Size (MB)"], tablefmt="pretty"))
 
-    # Debugging: Check data to be plotted
-    print(f"Block data: {block_data}")  # Debugging output
-
     # Plotting the graphs
     if block_data:
         times = [datetime.fromisoformat(b['time']) for b in block_data]
@@ -268,33 +265,34 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
         ]
 
         # Grouped bar chart
-        plt.figure(figsize=(10, 5))
+        plt.figure(figsize=(38, 20))  # Increase the figure size
         plt.bar(times, sizes, color=colors)
         plt.title('Block Size Over Time (Grouped Bar Chart)')
         plt.xlabel('Time')
         plt.ylabel('Block Size (MB)')
         plt.xticks(rotation=45)
-        plt.legend(handles=legend_patches)
+        plt.legend(handles=legend_patches, loc='upper right')  # Move the legend to the top right
         plt.tight_layout()
         plt.savefig(f"{output_image_file_base}_bar_chart.png")
 
         # Scatter plot
-        plt.figure(figsize=(10, 5))
+        plt.figure(figsize=(38, 20))  # Increase the figure size
         plt.scatter(times, sizes, color=colors)
         plt.title('Block Size Over Time (Scatter Plot)')
         plt.xlabel('Time')
         plt.ylabel('Block Size (MB)')
         plt.xticks(rotation=45)
-        plt.legend(handles=legend_patches)
+        plt.legend(handles=legend_patches, loc='upper right')  # Move the legend to the top right
         plt.tight_layout()
         plt.savefig(f"{output_image_file_base}_scatter_plot.png")
 
         # Histogram plot
-        plt.figure(figsize=(10, 5))
+        plt.figure(figsize=(38, 20))  # Increase the figure size
         plt.hist(sizes, bins=50, color='b', edgecolor='black')
         plt.title('Block Size Distribution (Histogram)')
         plt.xlabel('Block Size (MB)')
         plt.ylabel('Frequency')
+        plt.legend(handles=legend_patches, loc='upper right')  # Move the legend to the top right
         plt.tight_layout()
         plt.savefig(f"{output_image_file_base}_histogram.png")
     else:
