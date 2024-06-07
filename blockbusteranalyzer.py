@@ -66,19 +66,17 @@ def find_lowest_height(endpoint_type, endpoint_url):
             response = requests.get(f"{endpoint_url}/block?height=1", timeout=10)
             response.raise_for_status()
         block_info = response.json()
-        print(f"Block info response: {block_info}")  # Debugging output
         if 'error' in block_info and 'data' in block_info['error']:
             data_message = block_info['error']['data']
-            print(f"Data message: {data_message}")  # Debugging output
+            print(f"Data message: {data_message}")  # Essential message
             if "lowest height is" in data_message:
                 return int(data_message.split("lowest height is")[1].strip())
     except requests.HTTPError as e:
         if e.response.status_code == 500:
             error_response = e.response.json()
-            print(f"Error response: {error_response}")  # Debugging output
             if 'error' in error_response and 'data' in error_response['error']:
                 data_message = error_response['error']['data']
-                print(f"Data message: {data_message}")  # Debugging output
+                print(f"Data message: {data_message}")  # Essential message
                 if "lowest height is" in data_message:
                     return int(data_message.split("lowest height is")[1].strip())
         else:
@@ -127,6 +125,18 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
     global executor
     print("\nChecking the specified starting block height...")
 
+    # Health check
+    retries = 3
+    for attempt in range(retries):
+        if check_endpoint(endpoint_type, endpoint_url):
+            break
+        else:
+            print(f"RPC endpoint unreachable. Retrying {attempt + 1}/{retries}...")
+            time.sleep(5)
+    else:
+        print("RPC endpoint unreachable after multiple attempts. Exiting.")
+        sys.exit(1)
+
     block_info = fetch_block_info(endpoint_type, endpoint_url, lower_height)
     if block_info is None:
         print(f"Block height {lower_height} does not exist. Finding the earliest available block height...")
@@ -154,10 +164,6 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
 
     total_blocks = upper_height - lower_height + 1
     start_script_time = time.time()
-
-    if not check_endpoint(endpoint_type, endpoint_url):
-        print("RPC endpoint unreachable. Exiting.")
-        sys.exit(1)
 
     print("\n" + "="*40 + "\n")
 
@@ -239,8 +245,8 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
 
     table = [
         ["1MB to 3MB", len(yellow_blocks), f"{calculate_avg([b['size'] for b in yellow_blocks]):.2f}"],
-        ["3MB to 5MB", len(red_blocks), f"{calculate_avg([b['size'] for b in red_blocks]):.2f}"],
-        ["Greater than 5MB", len(magenta_blocks), f"{calculate_avg([b['size'] for b in magenta_blocks]):.2f}"]
+        ["3MB to 5MB", len(red_blocks), f"{calculate_avg([b['size'] for b in red_blocks])::.2f}"],
+        ["Greater than 5MB", len(magenta_blocks), f"{calculate_avg([b['size'] for b in magenta_blocks])::.2f}"]
     ]
 
     print(tabulate(table, headers=["Block Size Range", "Count", "Average Size (MB)"], tablefmt="pretty"))
