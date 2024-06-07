@@ -111,16 +111,16 @@ signal.signal(signal.SIGINT, signal_handler)
 
 def main(lower_height, upper_height, endpoint_type, endpoint_url):
     global executor
-    print("\nChecking the earliest available block height...")
+    print("\nChecking the specified starting block height...")
 
-    lowest_height = find_lowest_height(endpoint_type, endpoint_url)
-    if lowest_height is None:
-        print("Failed to determine the earliest block height. Exiting.")
-        sys.exit(1)
-
-    if lower_height < lowest_height:
-        print(f"The specified lower height {lower_height} is less than the earliest available height {lowest_height}. Adjusting to {lowest_height}.")
-        lower_height = lowest_height
+    block_info = fetch_block_info(endpoint_type, endpoint_url, lower_height)
+    if block_info is None:
+        print(f"Block height {lower_height} does not exist. Finding the earliest available block height...")
+        lower_height = find_lowest_height(endpoint_type, endpoint_url)
+        if lower_height is None:
+            print("Failed to determine the earliest block height. Exiting.")
+            sys.exit(1)
+        print(f"Using earliest available block height: {lower_height}")
 
     if lower_height > upper_height:
         print(f"The specified lower height {lower_height} is greater than the specified upper height {upper_height}. Exiting.")
@@ -225,7 +225,7 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
 
     table = [
         ["1MB to 3MB", len(yellow_blocks), f"{calculate_avg([b['size'] for b in yellow_blocks]):.2f}"],
-        ["3MB to 5MB", len(red_blocks), f"{calculate_avg([b['size'] for b in red_blocks]):.2f}"],
+        ["3MB to 5MB", len(red_blocks), f"{calculate_avg([b['size'] for b in red_blocks])::.2f}"],
         ["Greater than 5MB", len(magenta_blocks), f"{calculate_avg([b['size'] for b in magenta_blocks]):.2f}"]
     ]
 
