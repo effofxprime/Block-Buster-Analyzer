@@ -72,6 +72,17 @@ def find_lowest_height(endpoint_type, endpoint_url):
             print(f"Data message: {data_message}")  # Debugging output
             if "lowest height is" in data_message:
                 return int(data_message.split("lowest height is")[1].strip())
+    except requests.HTTPError as e:
+        if e.response.status_code == 500:
+            error_response = e.response.json()
+            print(f"Error response: {error_response}")  # Debugging output
+            if 'error' in error_response and 'data' in error_response['error']:
+                data_message = error_response['error']['data']
+                print(f"Data message: {data_message}")  # Debugging output
+                if "lowest height is" in data_message:
+                    return int(data_message.split("lowest height is")[1].strip())
+        else:
+            print(f"HTTPError: {e}")  # Debugging output
     except requests.RequestException as e:
         print(f"RequestException: {e}")  # Debugging output
         return None
