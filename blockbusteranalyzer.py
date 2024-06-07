@@ -172,12 +172,12 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
     executor = ThreadPoolExecutor(max_workers=10)
     future_to_height = {executor.submit(process_block, height, endpoint_type, endpoint_url): height for height in range(lower_height, upper_height + 1)}
 
+    completed = 0
     try:
         for future in as_completed(future_to_height):
             if shutdown_event.is_set():
                 break
 
-            height = future_to_height[future]
             try:
                 result = future.result()
                 if result is None:
@@ -194,9 +194,9 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
                     yellow_blocks.append({"height": height, "size": block_size_mb, "time": block_time.isoformat()})
 
             except Exception as e:
-                print(f"Error processing block {height}: {e}")
+                print(f"Error processing block {future_to_height[future]}: {e}")
 
-            completed = height - lower_height + 1
+            completed += 1
             progress = (completed / total_blocks) * 100
             elapsed_time = time.time() - start_script_time
             estimated_total_time = elapsed_time / completed * total_blocks
