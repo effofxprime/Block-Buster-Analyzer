@@ -21,7 +21,6 @@ from colorama import Fore, Style, init
 from tabulate import tabulate
 import matplotlib.pyplot as plt
 import signal
-import threading
 
 # Initialize colorama
 init(autoreset=True)
@@ -55,13 +54,12 @@ def calculate_avg(sizes):
     return sum(sizes) / len(sizes) if sizes else 0
 
 def parse_timestamp(timestamp):
-    formats = ["%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%S.%f%z", "%Y-%m-%dT%H:%M:%S.%f"]
-    for fmt in formats:
-        try:
-            return datetime.strptime(timestamp, fmt)
-        except ValueError:
-            continue
-    raise ValueError(f"time data '{timestamp}' does not match any known format")
+    try:
+        if '.' in timestamp:
+            timestamp = timestamp.split('.')[0] + 'Z'
+        return datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%SZ")
+    except ValueError:
+        raise ValueError(f"time data '{timestamp}' does not match any known format")
 
 def process_block(height, endpoint_type, endpoint_url):
     block_info = fetch_block_info(endpoint_type, endpoint_url, height)
