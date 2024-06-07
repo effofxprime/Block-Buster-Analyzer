@@ -56,6 +56,20 @@ def fetch_block_info(endpoint_type, endpoint_url, height):
     except requests.RequestException as e:
         return None
 
+def fetch_latest_height(endpoint_type, endpoint_url):
+    try:
+        if endpoint_type == "socket":
+            session = requests_unixsocket.Session()
+            encoded_url = f"http+unix://{quote_plus(endpoint_url)}/block"
+            response = session.get(encoded_url, timeout=10)
+        else:
+            response = requests.get(f"{endpoint_url}/block", timeout=10)
+            response.raise_for_status()
+        block_info = response.json()
+        return int(block_info['result']['block']['header']['height'])
+    except requests.RequestException as e:
+        return None
+
 def calculate_avg(sizes):
     return sum(sizes) / len(sizes) if sizes else 0
 
@@ -92,6 +106,21 @@ signal.signal(signal.SIGINT, signal_handler)
 
 def main(lower_height, upper_height, endpoint_type, endpoint_url):
     global executor
+    print("\nChecking the earliest available block height...")
+
+    latest_height = fetch_latest_height(endpoint_type, endpoint_url)
+    if latest_height is None:
+        print("Failed to fetch the latest block height. Exiting.")
+        sys.exit(1)
+
+    if lower_height > latest_height:
+        print(f"The specified lower height {lower_height} is greater than the latest height {latest_height}. Exiting.")
+        sys.exit(1)
+
+    if not fetch_block_info(endpoint_type, endpoint_url, lower_height):
+        print(f"The specified lower height {lower_height} does not exist. Adjusting to the earliest available height {latest_height}.")
+        lower_height = latest_height
+
     print("\nFetching block information. This may take a while for large ranges. Please wait...")
 
     start_time = datetime.utcnow()
