@@ -25,6 +25,9 @@ import signal
 # Initialize colorama
 init(autoreset=True)
 
+# Global variable to manage executor shutdown
+executor = None
+
 def check_endpoint(endpoint_type, endpoint_url):
     try:
         if endpoint_type == "socket":
@@ -74,11 +77,14 @@ def process_block(height, endpoint_type, endpoint_url):
 
 def signal_handler(sig, frame):
     print("\nProcess interrupted. Exiting gracefully...")
+    if executor:
+        executor.shutdown(wait=False)
     sys.exit(0)
 
 signal.signal(signal.SIGINT, signal_handler)
 
 def main(lower_height, upper_height, endpoint_type, endpoint_url):
+    global executor
     print("\nFetching block information. This may take a while for large ranges. Please wait...")
 
     start_time = datetime.utcnow()
@@ -131,9 +137,8 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
             time_left = estimated_total_time - elapsed_time
             print(f"Progress: {progress:.2f}% ({completed}/{total_blocks}) - Estimated time left: {timedelta(seconds=int(time_left))}", end='\r')
     except KeyboardInterrupt:
-        executor.shutdown(wait=False)
-        for future in future_to_height:
-            future.cancel()
+        if executor:
+            executor.shutdown(wait=False)
         print("\nProcess interrupted. Exiting gracefully...")
         sys.exit(0)
 
