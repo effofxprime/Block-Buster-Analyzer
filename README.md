@@ -4,23 +4,23 @@ BlockBusterAnalyzer is a fun and catchy tool to monitor and analyze the sizes of
 
 ## Features
 
--   Query block sizes within a specified range
--   Categorize blocks into size groups (1MB to 3MB, 3MB to 5MB, greater than 5MB)
--   Supports both Unix sockets and TCP endpoints
--   Generates a JSON report with the results
--   Provides progress updates during execution
+- Query block sizes within a specified range
+- Categorize blocks into size groups (1MB to 3MB, 3MB to 5MB, greater than 5MB)
+- Supports both Unix sockets and TCP endpoints
+- Generates a JSON report with the results
+- Provides progress updates during execution, including estimated time left and total duration
 
 ## Dependencies
 
 ### Python
 
--   `requests`
--   `requests-unixsocket`
+- `requests`
+- `requests-unixsocket`
 
 ### Bash
 
--   `curl`
--   `jq`
+- `curl`
+- `jq`
 
 ## Installation
 
