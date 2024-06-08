@@ -268,14 +268,14 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
     print(Fore.GREEN + f"\nBlock sizes have been written to {output_file}" + Style.RESET_ALL)
     print(Fore.CYAN + f"Script completed in: {timedelta(seconds=int(total_duration))}" + Style.RESET_ALL)
 
-    print(Fore.MAGENTA + "\nNumber of blocks in each group:" + Style.RESET_ALL)
+    print(Fore.MAGENTA + f"\nNumber of blocks in each group for block heights {lower_height} to {upper_height}:" + Style.RESET_ALL)
 
     table = [
-        [f"{Fore.GREEN}Less than 1MB{Style.RESET_ALL}", len(green_blocks), f"{calculate_avg([b['size'] for b in green_blocks]):.2f}", f"{min([b['size'] for b in green_blocks], default=0):.2f}", f"{max([b['size'] for b in green_blocks], default=0):.2f}"],
-        [f"{Fore.YELLOW}1MB to 2MB{Style.RESET_ALL}", len(yellow_blocks), f"{calculate_avg([b['size'] for b in yellow_blocks]):.2f}", f"{min([b['size'] for b in yellow_blocks], default=0):.2f}", f"{max([b['size'] for b in yellow_blocks], default=0):.2f}"],
-        [f"{Fore.LIGHTYELLOW_EX}2MB to 3MB{Style.RESET_ALL}", len(orange_blocks), f"{calculate_avg([b['size'] for b in orange_blocks]):.2f}", f"{min([b['size'] for b in orange_blocks], default=0):.2f}", f"{max([b['size'] for b in orange_blocks], default=0):.2f}"],
-        [f"{Fore.RED}3MB to 5MB{Style.RESET_ALL}", len(red_blocks), f"{calculate_avg([b['size'] for b in red_blocks]):.2f}", f"{min([b['size'] for b in red_blocks], default=0):.2f}", f"{max([b['size'] for b in red_blocks], default=0):.2f}"],
-        [f"{Fore.MAGENTA}Greater than 5MB{Style.RESET_ALL}", len(magenta_blocks), f"{calculate_avg([b['size'] for b in magenta_blocks]):.2f}", f"{min([b['size'] for b in magenta_blocks], default=0):.2f}", f"{max([b['size'] for b in magenta_blocks], default=0):.2f}"]
+        [f"{Fore.GREEN}Less than 1MB{Style.RESET_ALL}", f"{Fore.GREEN}{len(green_blocks)}{Style.RESET_ALL}", f"{Fore.GREEN}{calculate_avg([b['size'] for b in green_blocks]):.2f}{Style.RESET_ALL}", f"{Fore.GREEN}{min([b['size'] for b in green_blocks], default=0):.2f}{Style.RESET_ALL}", f"{Fore.GREEN}{max([b['size'] for b in green_blocks], default=0):.2f}{Style.RESET_ALL}"],
+        [f"{Fore.YELLOW}1MB to 2MB{Style.RESET_ALL}", f"{Fore.YELLOW}{len(yellow_blocks)}{Style.RESET_ALL}", f"{Fore.YELLOW}{calculate_avg([b['size'] for b in yellow_blocks]):.2f}{Style.RESET_ALL}", f"{Fore.YELLOW}{min([b['size'] for b in yellow_blocks], default=0):.2f}{Style.RESET_ALL}", f"{Fore.YELLOW}{max([b['size'] for b in yellow_blocks], default=0):.2f}{Style.RESET_ALL}"],
+        [f"{Fore.LIGHTYELLOW_EX}2MB to 3MB{Style.RESET_ALL}", f"{Fore.LIGHTYELLOW_EX}{len(orange_blocks)}{Style.RESET_ALL}", f"{Fore.LIGHTYELLOW_EX}{calculate_avg([b['size'] for b in orange_blocks]):.2f}{Style.RESET_ALL}", f"{Fore.LIGHTYELLOW_EX}{min([b['size'] for b in orange_blocks], default=0):.2f}{Style.RESET_ALL}", f"{Fore.LIGHTYELLOW_EX}{max([b['size'] for b in orange_blocks], default=0):.2f}{Style.RESET_ALL}"],
+        [f"{Fore.RED}3MB to 5MB{Style.RESET_ALL}", f"{Fore.RED}{len(red_blocks)}{Style.RESET_ALL}", f"{Fore.RED}{calculate_avg([b['size'] for b in red_blocks]):.2f}{Style.RESET_ALL}", f"{Fore.RED}{min([b['size'] for b in red_blocks], default=0):.2f}{Style.RESET_ALL}", f"{Fore.RED}{max([b['size'] for b in red_blocks], default=0):.2f}{Style.RESET_ALL}"],
+        [f"{Fore.MAGENTA}Greater than 5MB{Style.RESET_ALL}", f"{Fore.MAGENTA}{len(magenta_blocks)}{Style.RESET_ALL}", f"{Fore.MAGENTA}{calculate_avg([b['size'] for b in magenta_blocks]):.2f}{Style.RESET_ALL}", f"{Fore.MAGENTA}{min([b['size'] for b in magenta_blocks], default=0):.2f}{Style.RESET_ALL}", f"{Fore.MAGENTA}{max([b['size'] for b in magenta_blocks], default=0):.2f}{Style.RESET_ALL}"]
     ]
 
     print(tabulate(table, headers=["Block Size Range", "Count", "Average Size (MB)", "Min Size (MB)", "Max Size (MB)"], tablefmt="pretty"))
@@ -284,12 +284,12 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
     if block_data:
         times = [datetime.fromisoformat(b['time']) for b in block_data]
         sizes = [b['size'] for b in block_data]
-        colors = ['green' if size < 1 else 'yellow' if size < 2 else 'orange' if size < 3 else 'red' if size < 5 else 'magenta' for size in sizes]
+        colors = ['green' if size < 1 else 'yellow' if size < 2 else 'darkorange' if size < 3 else 'red' if size < 5 else 'magenta' for size in sizes]
 
         legend_patches = [
             mpatches.Patch(color='green', label='< 1MB'),
             mpatches.Patch(color='yellow', label='1MB to 2MB'),
-            mpatches.Patch(color='orange', label='2MB to 3MB'),
+            mpatches.Patch(color='darkorange', label='2MB to 3MB'),
             mpatches.Patch(color='red', label='3MB to 5MB'),
             mpatches.Patch(color='magenta', label='> 5MB')
         ]
@@ -303,13 +303,13 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
 
         green_sizes = [sum(sizes[i] for i in range(len(sizes)) if times[i].date() == day and colors[i] == 'green') for day in unique_days]
         yellow_sizes = [sum(sizes[i] for i in range(len(sizes)) if times[i].date() == day and colors[i] == 'yellow') for day in unique_days]
-        orange_sizes = [sum(sizes[i] for i in range(len(sizes)) if times[i].date() == day and colors[i] == 'orange') for day in unique_days]
+        orange_sizes = [sum(sizes[i] for i in range(len(sizes)) if times[i].date() == day and colors[i] == 'darkorange') for day in unique_days]
         red_sizes = [sum(sizes[i] for i in range(len(sizes)) if times[i].date() == day and colors[i] == 'red') for day in unique_days]
         magenta_sizes = [sum(sizes[i] for i in range(len(sizes)) if times[i].date() == day and colors[i] == 'magenta') for day in unique_days]
 
         ax.bar(bar_positions - bar_width * 2, green_sizes, bar_width, label='< 1MB', color='green')
         ax.bar(bar_positions - bar_width, yellow_sizes, bar_width, label='1MB to 2MB', color='yellow')
-        ax.bar(bar_positions, orange_sizes, bar_width, label='2MB to 3MB', color='orange')
+        ax.bar(bar_positions, orange_sizes, bar_width, label='2MB to 3MB', color='darkorange')
         ax.bar(bar_positions + bar_width, red_sizes, bar_width, label='3MB to 5MB', color='red')
         ax.bar(bar_positions + bar_width * 2, magenta_sizes, bar_width, label='> 5MB', color='magenta')
 
