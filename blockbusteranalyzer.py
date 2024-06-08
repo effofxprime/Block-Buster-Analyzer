@@ -114,7 +114,7 @@ def process_block(height, endpoint_type, endpoint_url):
     return (height, block_size_mb, block_time)
 
 def signal_handler(sig, frame):
-    print("\nProcess interrupted. Exiting gracefully...")
+    print(Fore.RED + "\nProcess interrupted. Exiting gracefully..." + Style.RESET_ALL)
     shutdown_event.set()
     if executor:
         executor.shutdown(wait=False)
@@ -206,7 +206,7 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
             elapsed_time = time.time() - start_script_time
             estimated_total_time = elapsed_time / completed * total_blocks
             time_left = estimated_total_time - elapsed_time
-            print(f"Progress: {progress:.2f}% ({completed}/{total_blocks}) - Estimated time left: {timedelta(seconds=int(time_left))}", end='\r')
+            print(Fore.GREEN + f"Progress: {progress:.2f}% ({completed}/{total_blocks}) - Estimated time left: {timedelta(seconds=int(time_left))}", end='\r')
     except KeyboardInterrupt:
         shutdown_event.set()
         if executor:
@@ -270,6 +270,7 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
 
     print(Fore.MAGENTA + f"\nNumber of blocks in each group for block heights {lower_height} to {upper_height}:" + Style.RESET_ALL)
 
+    headers = [f"{Fore.BLUE}Block Size Range{Style.RESET_ALL}", f"{Fore.BLUE}Count{Style.RESET_ALL}", f"{Fore.BLUE}Average Size (MB){Style.RESET_ALL}", f"{Fore.BLUE}Min Size (MB){Style.RESET_ALL}", f"{Fore.BLUE}Max Size (MB){Style.RESET_ALL}"]
     table = [
         [f"{Fore.GREEN}Less than 1MB{Style.RESET_ALL}", f"{Fore.GREEN}{len(green_blocks)}{Style.RESET_ALL}", f"{Fore.GREEN}{calculate_avg([b['size'] for b in green_blocks]):.2f}{Style.RESET_ALL}", f"{Fore.GREEN}{min([b['size'] for b in green_blocks], default=0):.2f}{Style.RESET_ALL}", f"{Fore.GREEN}{max([b['size'] for b in green_blocks], default=0):.2f}{Style.RESET_ALL}"],
         [f"{Fore.YELLOW}1MB to 2MB{Style.RESET_ALL}", f"{Fore.YELLOW}{len(yellow_blocks)}{Style.RESET_ALL}", f"{Fore.YELLOW}{calculate_avg([b['size'] for b in yellow_blocks]):.2f}{Style.RESET_ALL}", f"{Fore.YELLOW}{min([b['size'] for b in yellow_blocks], default=0):.2f}{Style.RESET_ALL}", f"{Fore.YELLOW}{max([b['size'] for b in yellow_blocks], default=0):.2f}{Style.RESET_ALL}"],
@@ -278,7 +279,7 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
         [f"{Fore.MAGENTA}Greater than 5MB{Style.RESET_ALL}", f"{Fore.MAGENTA}{len(magenta_blocks)}{Style.RESET_ALL}", f"{Fore.MAGENTA}{calculate_avg([b['size'] for b in magenta_blocks]):.2f}{Style.RESET_ALL}", f"{Fore.MAGENTA}{min([b['size'] for b in magenta_blocks], default=0):.2f}{Style.RESET_ALL}", f"{Fore.MAGENTA}{max([b['size'] for b in magenta_blocks], default=0):.2f}{Style.RESET_ALL}"]
     ]
 
-    print(tabulate(table, headers=["Block Size Range", "Count", "Average Size (MB)", "Min Size (MB)", "Max Size (MB)"], tablefmt="pretty"))
+    print(tabulate(table, headers=headers, tablefmt="pretty"))
 
     # Plotting the graphs
     if block_data:
