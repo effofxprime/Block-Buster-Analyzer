@@ -17,7 +17,7 @@ import sys
 from datetime import datetime, timedelta
 from urllib.parse import quote_plus
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from colorama import Fore, Style, init
+from colorama import Fore, Back, Style, init
 from tabulate import tabulate
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
@@ -124,7 +124,7 @@ signal.signal(signal.SIGINT, signal_handler)
 
 def main(lower_height, upper_height, endpoint_type, endpoint_url):
     global executor
-    print("\nChecking the specified starting block height...")
+    print(Fore.CYAN + "\nChecking the specified starting block height..." + Style.RESET_ALL)
 
     # Health check
     retries = 3
@@ -132,33 +132,35 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
         if check_endpoint(endpoint_type, endpoint_url):
             break
         else:
-            print(f"RPC endpoint unreachable. Retrying {attempt + 1}/{retries}...")
+            print(Fore.YELLOW + f"RPC endpoint unreachable. Retrying {attempt + 1}/{retries}..." + Style.RESET_ALL)
             time.sleep(5)
     else:
-        print("RPC endpoint unreachable after multiple attempts. Exiting.")
+        print(Fore.RED + "RPC endpoint unreachable after multiple attempts. Exiting." + Style.RESET_ALL)
         sys.exit(1)
 
     block_info = fetch_block_info(endpoint_type, endpoint_url, lower_height)
     if block_info is None:
-        print(f"Block height {lower_height} does not exist. Finding the earliest available block height...")
+        print(Fore.YELLOW + f"Block height {lower_height} does not exist. Finding the earliest available block height..." + Style.RESET_ALL)
         lower_height = find_lowest_height(endpoint_type, endpoint_url)
         if lower_height is None:
-            print("Failed to determine the earliest block height. Exiting.")
+            print(Fore.RED + "Failed to determine the earliest block height. Exiting." + Style.RESET_ALL)
             sys.exit(1)
-        print(f"Using earliest available block height: {lower_height}")
+        print(Fore.CYAN + f"Using earliest available block height: {lower_height}" + Style.RESET_ALL)
 
     if lower_height > upper_height:
-        print(f"The specified lower height {lower_height} is greater than the specified upper height {upper_height}. Exiting.")
+        print(Fore.RED + f"The specified lower height {lower_height} is greater than the specified upper height {upper_height}. Exiting." + Style.RESET_ALL)
         sys.exit(1)
 
-    print("\nFetching block information. This may take a while for large ranges. Please wait...")
+    print(Fore.CYAN + "\nFetching block information. This may take a while for large ranges. Please wait..." + Style.RESET_ALL)
 
     start_time = datetime.utcnow()
     current_date = start_time.strftime("%B %A %d, %Y %H:%M:%S UTC")
     output_file = f"block_sizes_{lower_height}_to_{upper_height}_{start_time.strftime('%Y%m%d_%H%M%S')}.json"
     output_image_file_base = f"block_sizes_{lower_height}_to_{upper_height}_{start_time.strftime('%Y%m%d_%H%M%S')}"
 
+    green_blocks = []
     yellow_blocks = []
+    orange_blocks = []
     red_blocks = []
     magenta_blocks = []
     block_data = []
@@ -189,8 +191,12 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
                     magenta_blocks.append({"height": height, "size": block_size_mb, "time": block_time.isoformat()})
                 elif block_size_mb > 3:
                     red_blocks.append({"height": height, "size": block_size_mb, "time": block_time.isoformat()})
+                elif block_size_mb > 2:
+                    orange_blocks.append({"height": height, "size": block_size_mb, "time": block_time.isoformat()})
                 elif block_size_mb > 1:
                     yellow_blocks.append({"height": height, "size": block_size_mb, "time": block_time.isoformat()})
+                else:
+                    green_blocks.append({"height": height, "size": block_size_mb, "time": block_time.isoformat()})
 
             except Exception as e:
                 print(f"Error processing block {future_to_height[future]}: {e}")
@@ -205,7 +211,7 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
         shutdown_event.set()
         if executor:
             executor.shutdown(wait=False)
-        print("\nProcess interrupted. Exiting gracefully...")
+        print(Fore.RED + "\nProcess interrupted. Exiting gracefully..." + Style.RESET_ALL)
         sys.exit(0)
 
     executor.shutdown(wait=True)
@@ -214,22 +220,42 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
         "connection_type": endpoint_type,
         "endpoint": endpoint_url,
         "run_time": current_date,
-        "1MB_to_3MB": yellow_blocks,
+        "less_than_1MB": green_blocks,
+        "1MB_to_2MB": yellow_blocks,
+        "2MB_to_3MB": orange_blocks,
         "3MB_to_5MB": red_blocks,
         "greater_than_5MB": magenta_blocks,
         "block_data": block_data,
         "stats": {
-            "1MB_to_3MB": {
+            "less_than_1MB": {
+                "count": len(green_blocks),
+                "avg_size_mb": calculate_avg([b["size"] for b in green_blocks]),
+                "min_size_mb": min([b["size"] for b in green_blocks], default=0),
+                "max_size_mb": max([b["size"] for b in green_blocks], default=0)
+            },
+            "1MB_to_2MB": {
                 "count": len(yellow_blocks),
-                "avg_size_mb": calculate_avg([b["size"] for b in yellow_blocks])
+                "avg_size_mb": calculate_avg([b["size"] for b in yellow_blocks]),
+                "min_size_mb": min([b["size"] for b in yellow_blocks], default=0),
+                "max_size_mb": max([b["size"] for b in yellow_blocks], default=0)
+            },
+            "2MB_to_3MB": {
+                "count": len(orange_blocks),
+                "avg_size_mb": calculate_avg([b["size"] for b in orange_blocks]),
+                "min_size_mb": min([b["size"] for b in orange_blocks], default=0),
+                "max_size_mb": max([b["size"] for b in orange_blocks], default=0)
             },
             "3MB_to_5MB": {
                 "count": len(red_blocks),
-                "avg_size_mb": calculate_avg([b["size"] for b in red_blocks])
+                "avg_size_mb": calculate_avg([b["size"] for b in red_blocks]),
+                "min_size_mb": min([b["size"] for b in red_blocks], default=0),
+                "max_size_mb": max([b["size"] for b in red_blocks], default=0)
             },
             "greater_than_5MB": {
                 "count": len(magenta_blocks),
-                "avg_size_mb": calculate_avg([b["size"] for b in magenta_blocks])
+                "avg_size_mb": calculate_avg([b["size"] for b in magenta_blocks]),
+                "min_size_mb": min([b["size"] for b in magenta_blocks], default=0),
+                "max_size_mb": max([b["size"] for b in magenta_blocks], default=0)
             }
         }
     }
@@ -239,28 +265,31 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
 
     end_script_time = time.time()
     total_duration = end_script_time - start_script_time
-    print(f"\nBlock sizes have been written to {output_file}")
-    print(f"Script completed in: {timedelta(seconds=int(total_duration))}")
+    print(Fore.GREEN + f"\nBlock sizes have been written to {output_file}" + Style.RESET_ALL)
+    print(Fore.CYAN + f"Script completed in: {timedelta(seconds=int(total_duration))}" + Style.RESET_ALL)
 
-    print("\nNumber of blocks in each group:")
+    print(Fore.MAGENTA + "\nNumber of blocks in each group:" + Style.RESET_ALL)
 
     table = [
-        [f"{Fore.YELLOW}1MB to 3MB{Style.RESET_ALL}", len(yellow_blocks), f"{calculate_avg([b['size'] for b in yellow_blocks]):.2f}"],
-        [f"{Fore.RED}3MB to 5MB{Style.RESET_ALL}", len(red_blocks), f"{calculate_avg([b['size'] for b in red_blocks]):.2f}"],
-        [f"{Fore.MAGENTA}Greater than 5MB{Style.RESET_ALL}", len(magenta_blocks), f"{calculate_avg([b['size'] for b in magenta_blocks]):.2f}"]
+        [f"{Fore.GREEN}Less than 1MB{Style.RESET_ALL}", len(green_blocks), f"{calculate_avg([b['size'] for b in green_blocks]):.2f}", f"{min([b['size'] for b in green_blocks], default=0):.2f}", f"{max([b['size'] for b in green_blocks], default=0):.2f}"],
+        [f"{Fore.YELLOW}1MB to 2MB{Style.RESET_ALL}", len(yellow_blocks), f"{calculate_avg([b['size'] for b in yellow_blocks]):.2f}", f"{min([b['size'] for b in yellow_blocks], default=0):.2f}", f"{max([b['size'] for b in yellow_blocks], default=0):.2f}"],
+        [f"{Fore.LIGHTYELLOW_EX}2MB to 3MB{Style.RESET_ALL}", len(orange_blocks), f"{calculate_avg([b['size'] for b in orange_blocks]):.2f}", f"{min([b['size'] for b in orange_blocks], default=0):.2f}", f"{max([b['size'] for b in orange_blocks], default=0):.2f}"],
+        [f"{Fore.RED}3MB to 5MB{Style.RESET_ALL}", len(red_blocks), f"{calculate_avg([b['size'] for b in red_blocks]):.2f}", f"{min([b['size'] for b in red_blocks], default=0):.2f}", f"{max([b['size'] for b in red_blocks], default=0):.2f}"],
+        [f"{Fore.MAGENTA}Greater than 5MB{Style.RESET_ALL}", len(magenta_blocks), f"{calculate_avg([b['size'] for b in magenta_blocks])::.2f}", f"{min([b['size'] for b in magenta_blocks], default=0):.2f}", f"{max([b['size'] for b in magenta_blocks], default=0):.2f}"]
     ]
 
-    print(tabulate(table, headers=["Block Size Range", "Count", "Average Size (MB)"], tablefmt="pretty"))
+    print(tabulate(table, headers=["Block Size Range", "Count", "Average Size (MB)", "Min Size (MB)", "Max Size (MB)"], tablefmt="pretty"))
 
     # Plotting the graphs
     if block_data:
         times = [datetime.fromisoformat(b['time']) for b in block_data]
         sizes = [b['size'] for b in block_data]
-        colors = ['green' if size < 1 else 'yellow' if size < 3 else 'red' if size < 5 else 'magenta' for size in sizes]
+        colors = ['green' if size < 1 else 'yellow' if size < 2 else 'orange' if size < 3 else 'red' if size < 5 else 'magenta' for size in sizes]
 
         legend_patches = [
             mpatches.Patch(color='green', label='< 1MB'),
-            mpatches.Patch(color='yellow', label='1MB to 3MB'),
+            mpatches.Patch(color='yellow', label='1MB to 2MB'),
+            mpatches.Patch(color='orange', label='2MB to 3MB'),
             mpatches.Patch(color='red', label='3MB to 5MB'),
             mpatches.Patch(color='magenta', label='> 5MB')
         ]
@@ -269,20 +298,22 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
         fig, ax = plt.subplots(figsize=(38, 20))  # Increase the figure size
 
         unique_days = list(sorted(set([dt.date() for dt in times])))
-        bar_width = 0.2
+        bar_width = 0.15
         bar_positions = np.arange(len(unique_days))
 
         green_sizes = [sum(sizes[i] for i in range(len(sizes)) if times[i].date() == day and colors[i] == 'green') for day in unique_days]
         yellow_sizes = [sum(sizes[i] for i in range(len(sizes)) if times[i].date() == day and colors[i] == 'yellow') for day in unique_days]
+        orange_sizes = [sum(sizes[i] for i in range(len(sizes)) if times[i].date() == day and colors[i] == 'orange') for day in unique_days]
         red_sizes = [sum(sizes[i] for i in range(len(sizes)) if times[i].date() == day and colors[i] == 'red') for day in unique_days]
         magenta_sizes = [sum(sizes[i] for i in range(len(sizes)) if times[i].date() == day and colors[i] == 'magenta') for day in unique_days]
 
-        ax.bar(bar_positions - bar_width * 1.5, green_sizes, bar_width, label='< 1MB', color='green')
-        ax.bar(bar_positions - bar_width * 0.5, yellow_sizes, bar_width, label='1MB to 3MB', color='yellow')
-        ax.bar(bar_positions + bar_width * 0.5, red_sizes, bar_width, label='3MB to 5MB', color='red')
-        ax.bar(bar_positions + bar_width * 1.5, magenta_sizes, bar_width, label='> 5MB', color='magenta')
+        ax.bar(bar_positions - bar_width * 2, green_sizes, bar_width, label='< 1MB', color='green')
+        ax.bar(bar_positions - bar_width, yellow_sizes, bar_width, label='1MB to 2MB', color='yellow')
+        ax.bar(bar_positions, orange_sizes, bar_width, label='2MB to 3MB', color='orange')
+        ax.bar(bar_positions + bar_width, red_sizes, bar_width, label='3MB to 5MB', color='red')
+        ax.bar(bar_positions + bar_width * 2, magenta_sizes, bar_width, label='> 5MB', color='magenta')
 
-        ax.set_title('Block Size Over Time (Grouped Bar Chart)', fontsize=28)
+        ax.set_title(f'Block Size Over Time (Grouped Bar Chart)\nBlock Heights {lower_height} to {upper_height}', fontsize=28)
         ax.set_xlabel('Time', fontsize=24)
         ax.set_ylabel('Block Size (MB)', fontsize=24)
         ax.set_xticks(bar_positions)
@@ -295,7 +326,7 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
         # Scatter plot
         fig, ax = plt.subplots(figsize=(38, 20))  # Increase the figure size
         ax.scatter(times, sizes, color=colors)
-        ax.set_title('Block Size Over Time (Scatter Plot)', fontsize=28)
+        ax.set_title(f'Block Size Over Time (Scatter Plot)\nBlock Heights {lower_height} to {upper_height}', fontsize=28)
         ax.set_xlabel('Time', fontsize=24)
         ax.set_ylabel('Block Size (MB)', fontsize=24)
         ax.tick_params(axis='x', rotation=45, labelsize=20)
@@ -307,7 +338,7 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
         # Histogram plot
         fig, ax = plt.subplots(figsize=(38, 20))  # Increase the figure size
         ax.hist(sizes, bins=50, color='b', edgecolor='black')
-        ax.set_title('Block Size Distribution (Histogram)', fontsize=28)
+        ax.set_title(f'Block Size Distribution (Histogram)\nBlock Heights {lower_height} to {upper_height}', fontsize=28)
         ax.set_xlabel('Block Size (MB)', fontsize=24)
         ax.set_ylabel('Frequency', fontsize=24)
         ax.legend(handles=legend_patches, loc='upper right', fontsize=20)
@@ -320,7 +351,7 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
 
 if __name__ == "__main__":
     if len(sys.argv) != 5:
-        print("Usage: python blockbusteranalyzer.py <lower_height> <upper_height> <endpoint_type> <endpoint_url>")
+        print(Fore.RED + "Usage: python blockbusteranalyzer.py <lower_height> <upper_height> <endpoint_type> <endpoint_url>" + Style.RESET_ALL)
         sys.exit(1)
 
     lower_height = int(sys.argv[1])
