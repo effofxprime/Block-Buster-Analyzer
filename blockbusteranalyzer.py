@@ -275,7 +275,7 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
         [f"{Fore.YELLOW}1MB to 2MB{Style.RESET_ALL}", len(yellow_blocks), f"{calculate_avg([b['size'] for b in yellow_blocks]):.2f}", f"{min([b['size'] for b in yellow_blocks], default=0):.2f}", f"{max([b['size'] for b in yellow_blocks], default=0):.2f}"],
         [f"{Fore.LIGHTYELLOW_EX}2MB to 3MB{Style.RESET_ALL}", len(orange_blocks), f"{calculate_avg([b['size'] for b in orange_blocks]):.2f}", f"{min([b['size'] for b in orange_blocks], default=0):.2f}", f"{max([b['size'] for b in orange_blocks], default=0):.2f}"],
         [f"{Fore.RED}3MB to 5MB{Style.RESET_ALL}", len(red_blocks), f"{calculate_avg([b['size'] for b in red_blocks]):.2f}", f"{min([b['size'] for b in red_blocks], default=0):.2f}", f"{max([b['size'] for b in red_blocks], default=0):.2f}"],
-        [f"{Fore.MAGENTA}Greater than 5MB{Style.RESET_ALL}", len(magenta_blocks), f"{calculate_avg([b['size'] for b in magenta_blocks])::.2f}", f"{min([b['size'] for b in magenta_blocks], default=0):.2f}", f"{max([b['size'] for b in magenta_blocks], default=0):.2f}"]
+        [f"{Fore.MAGENTA}Greater than 5MB{Style.RESET_ALL}", len(magenta_blocks), f"{calculate_avg([b['size'] for b in magenta_blocks]):.2f}", f"{min([b['size'] for b in magenta_blocks], default=0):.2f}", f"{max([b['size'] for b in magenta_blocks], default=0):.2f}"]
     ]
 
     print(tabulate(table, headers=["Block Size Range", "Count", "Average Size (MB)", "Min Size (MB)", "Max Size (MB)"], tablefmt="pretty"))
