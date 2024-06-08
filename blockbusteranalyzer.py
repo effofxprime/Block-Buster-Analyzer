@@ -6,7 +6,7 @@
 # @Twitter - https://twitter.com/ErialosOfAstora
 # @Date - 2024-06-06 15:19:00 UTC
 # @Last_Modified_By - Jonathan - Erialos
-# @Last_Modified_Time - 2024-06-08 23:00:00 UTC
+# @Last_Modified_Time - 2024-06-09 23:00:00 UTC
 # @Description - A tool to analyze block sizes in a blockchain.
 
 import requests
@@ -17,7 +17,6 @@ import sys
 from datetime import datetime, timedelta
 from urllib.parse import quote_plus
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from colorama import Fore, Back, Style, init
 from tabulate import tabulate
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
@@ -25,8 +24,15 @@ import numpy as np
 import signal
 import threading
 
-# Initialize colorama
-init(autoreset=True)
+# ANSI escape sequences for 256 colors
+color_green = "\033[38;5;10m"
+color_yellow = "\033[38;5;11m"
+color_orange = "\033[38;5;214m"
+color_red = "\033[38;5;9m"
+color_magenta = "\033[38;5;13m"
+color_light_blue = "\033[38;5;123m"
+color_dark_grey = "\033[38;5;245m"
+color_reset = "\033[0m"
 
 # Global variable to manage executor shutdown
 executor = None
@@ -114,7 +120,7 @@ def process_block(height, endpoint_type, endpoint_url):
     return (height, block_size_mb, block_time)
 
 def signal_handler(sig, frame):
-    print(Fore.RED + "\nProcess interrupted. Exiting gracefully..." + Style.RESET_ALL)
+    print(f"{color_red}\nProcess interrupted. Exiting gracefully...{color_reset}")
     shutdown_event.set()
     if executor:
         executor.shutdown(wait=False)
@@ -124,7 +130,7 @@ signal.signal(signal.SIGINT, signal_handler)
 
 def main(lower_height, upper_height, endpoint_type, endpoint_url):
     global executor
-    print(Fore.CYAN + "\nChecking the specified starting block height..." + Style.RESET_ALL)
+    print(f"{color_light_blue}\nChecking the specified starting block height...{color_reset}")
 
     # Health check
     retries = 3
@@ -132,26 +138,26 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
         if check_endpoint(endpoint_type, endpoint_url):
             break
         else:
-            print(Fore.YELLOW + f"RPC endpoint unreachable. Retrying {attempt + 1}/{retries}..." + Style.RESET_ALL)
+            print(f"{color_yellow}RPC endpoint unreachable. Retrying {attempt + 1}/{retries}...{color_reset}")
             time.sleep(5)
     else:
-        print(Fore.RED + "RPC endpoint unreachable after multiple attempts. Exiting." + Style.RESET_ALL)
+        print(f"{color_red}RPC endpoint unreachable after multiple attempts. Exiting.{color_reset}")
         sys.exit(1)
 
     block_info = fetch_block_info(endpoint_type, endpoint_url, lower_height)
     if block_info is None:
-        print(Fore.YELLOW + f"Block height {lower_height} does not exist. Finding the earliest available block height..." + Style.RESET_ALL)
+        print(f"{color_yellow}Block height {lower_height} does not exist. Finding the earliest available block height...{color_reset}")
         lower_height = find_lowest_height(endpoint_type, endpoint_url)
         if lower_height is None:
-            print(Fore.RED + "Failed to determine the earliest block height. Exiting." + Style.RESET_ALL)
+            print(f"{color_red}Failed to determine the earliest block height. Exiting.{color_reset}")
             sys.exit(1)
-        print(Fore.CYAN + f"Using earliest available block height: {lower_height}" + Style.RESET_ALL)
+        print(f"{color_light_blue}Using earliest available block height: {lower_height}{color_reset}")
 
     if lower_height > upper_height:
-        print(Fore.RED + f"The specified lower height {lower_height} is greater than the specified upper height {upper_height}. Exiting." + Style.RESET_ALL)
+        print(f"{color_red}The specified lower height {lower_height} is greater than the specified upper height {upper_height}. Exiting.{color_reset}")
         sys.exit(1)
 
-    print(Fore.CYAN + "\nFetching block information. This may take a while for large ranges. Please wait..." + Style.RESET_ALL)
+    print(f"{color_light_blue}\nFetching block information. This may take a while for large ranges. Please wait...{color_reset}")
 
     start_time = datetime.utcnow()
     current_date = start_time.strftime("%B %A %d, %Y %H:%M:%S UTC")
@@ -168,7 +174,7 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
     total_blocks = upper_height - lower_height + 1
     start_script_time = time.time()
 
-    print(Fore.LIGHTBLACK_EX + "\n" + "="*40 + "\n" + Style.RESET_ALL)
+    print(f"{color_dark_grey}\n{'='*40}\n{color_reset}")
 
     executor = ThreadPoolExecutor(max_workers=10)
     future_to_height = {executor.submit(process_block, height, endpoint_type, endpoint_url): height for height in range(lower_height, upper_height + 1)}
@@ -206,12 +212,12 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
             elapsed_time = time.time() - start_script_time
             estimated_total_time = elapsed_time / completed * total_blocks
             time_left = estimated_total_time - elapsed_time
-            print(Fore.CYAN + f"Progress: {progress:.2f}% ({completed}/{total_blocks}) - Estimated time left: {timedelta(seconds=int(time_left))}", end='\r')
+            print(f"{color_light_blue}Progress: {progress:.2f}% ({completed}/{total_blocks}) - Estimated time left: {timedelta(seconds=int(time_left))}", end='\r')
     except KeyboardInterrupt:
         shutdown_event.set()
         if executor:
             executor.shutdown(wait=False)
-        print(Fore.RED + "\nProcess interrupted. Exiting gracefully..." + Style.RESET_ALL)
+        print(f"{color_red}\nProcess interrupted. Exiting gracefully...{color_reset}")
         sys.exit(0)
 
     executor.shutdown(wait=True)
@@ -265,34 +271,34 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
 
     end_script_time = time.time()
     total_duration = end_script_time - start_script_time
-    print(Fore.GREEN + f"\nBlock sizes have been written to {output_file}" + Style.RESET_ALL)
-    print(Fore.CYAN + f"Script completed in: {timedelta(seconds=int(total_duration))}" + Style.RESET_ALL)
+    print(f"{color_green}\nBlock sizes have been written to {output_file}{color_reset}")
+    print(f"{color_light_blue}Script completed in: {timedelta(seconds=int(total_duration))}{color_reset}")
 
-    print(Fore.MAGENTA + f"\nNumber of blocks in each group for block heights {lower_height} to {upper_height}:" + Style.RESET_ALL)
+    print(f"{color_magenta}\nNumber of blocks in each group for block heights {lower_height} to {upper_height}:{color_reset}")
 
-    headers = [f"{Fore.LIGHTBLUE_EX}Block Size Range{Style.RESET_ALL}", f"{Fore.LIGHTBLUE_EX}Count{Style.RESET_ALL}", f"{Fore.LIGHTBLUE_EX}Average Size (MB){Style.RESET_ALL}", f"{Fore.LIGHTBLUE_EX}Min Size (MB){Style.RESET_ALL}", f"{Fore.LIGHTBLUE_EX}Max Size (MB){Style.RESET_ALL}"]
+    headers = [f"{color_light_blue}Block Size Range{color_reset}", f"{color_light_blue}Count{color_reset}", f"{color_light_blue}Average Size (MB){color_reset}", f"{color_light_blue}Min Size (MB){color_reset}", f"{color_light_blue}Max Size (MB){color_reset}"]
     table = [
-        [f"{Fore.GREEN}Less than 1MB{Style.RESET_ALL}", f"{Fore.GREEN}{len(green_blocks)}{Style.RESET_ALL}", f"{Fore.GREEN}{calculate_avg([b['size'] for b in green_blocks]):.2f}{Style.RESET_ALL}", f"{Fore.GREEN}{min([b['size'] for b in green_blocks], default=0):.2f}{Style.RESET_ALL}", f"{Fore.GREEN}{max([b['size'] for b in green_blocks], default=0):.2f}{Style.RESET_ALL}"],
-        [f"{Fore.YELLOW}1MB to 2MB{Style.RESET_ALL}", f"{Fore.YELLOW}{len(yellow_blocks)}{Style.RESET_ALL}", f"{Fore.YELLOW}{calculate_avg([b['size'] for b in yellow_blocks]):.2f}{Style.RESET_ALL}", f"{Fore.YELLOW}{min([b['size'] for b in yellow_blocks], default=0):.2f}{Style.RESET_ALL}", f"{Fore.YELLOW}{max([b['size'] for b in yellow_blocks], default=0):.2f}{Style.RESET_ALL}"],
-        [f"{Fore.DARKORANGE}2MB to 3MB{Style.RESET_ALL}", f"{Fore.DARKORANGE}{len(orange_blocks)}{Style.RESET_ALL}", f"{Fore.DARKORANGE}{calculate_avg([b['size'] for b in orange_blocks]):.2f}{Style.RESET_ALL}", f"{Fore.DARKORANGE}{min([b['size'] for b in orange_blocks], default=0):.2f}{Style.RESET_ALL}", f"{Fore.DARKORANGE}{max([b['size'] for b in orange_blocks], default=0):.2f}{Style.RESET_ALL}"],
-        [f"{Fore.RED}3MB to 5MB{Style.RESET_ALL}", f"{Fore.RED}{len(red_blocks)}{Style.RESET_ALL}", f"{Fore.RED}{calculate_avg([b['size'] for b in red_blocks]):.2f}{Style.RESET_ALL}", f"{Fore.RED}{min([b['size'] for b in red_blocks], default=0):.2f}{Style.RESET_ALL}", f"{Fore.RED}{max([b['size'] for b in red_blocks], default=0):.2f}{Style.RESET_ALL}"],
-        [f"{Fore.MAGENTA}Greater than 5MB{Style.RESET_ALL}", f"{Fore.MAGENTA}{len(magenta_blocks)}{Style.RESET_ALL}", f"{Fore.MAGENTA}{calculate_avg([b['size'] for b in magenta_blocks]):.2f}{Style.RESET_ALL}", f"{Fore.MAGENTA}{min([b['size'] for b in magenta_blocks], default=0):.2f}{Style.RESET_ALL}", f"{Fore.MAGENTA}{max([b['size'] for b in magenta_blocks], default=0):.2f}{Style.RESET_ALL}"]
+        [f"{color_green}Less than 1MB{color_reset}", f"{color_green}{len(green_blocks)}{color_reset}", f"{color_green}{calculate_avg([b['size'] for b in green_blocks]):.2f}{color_reset}", f"{color_green}{min([b['size'] for b in green_blocks], default=0):.2f}{color_reset}", f"{color_green}{max([b['size'] for b in green_blocks], default=0):.2f}{color_reset}"],
+        [f"{color_yellow}1MB to 2MB{color_reset}", f"{color_yellow}{len(yellow_blocks)}{color_reset}", f"{color_yellow}{calculate_avg([b['size'] for b in yellow_blocks]):.2f}{color_reset}", f"{color_yellow}{min([b['size'] for b in yellow_blocks], default=0):.2f}{color_reset}", f"{color_yellow}{max([b['size'] for b in yellow_blocks], default=0):.2f}{color_reset}"],
+        [f"{color_orange}2MB to 3MB{color_reset}", f"{color_orange}{len(orange_blocks)}{color_reset}", f"{color_orange}{calculate_avg([b['size'] for b in orange_blocks]):.2f}{color_reset}", f"{color_orange}{min([b['size'] for b in orange_blocks], default=0):.2f}{color_reset}", f"{color_orange}{max([b['size'] for b in orange_blocks], default=0):.2f}{color_reset}"],
+        [f"{color_red}3MB to 5MB{color_reset}", f"{color_red}{len(red_blocks)}{color_reset}", f"{color_red}{calculate_avg([b['size'] for b in red_blocks]):.2f}{color_reset}", f"{color_red}{min([b['size'] for b in red_blocks], default=0):.2f}{color_reset}", f"{color_red}{max([b['size'] for b in red_blocks], default=0):.2f}{color_reset}"],
+        [f"{color_magenta}Greater than 5MB{color_reset}", f"{color_magenta}{len(magenta_blocks)}{color_reset}", f"{color_magenta}{calculate_avg([b['size'] for b in magenta_blocks]):.2f}{color_reset}", f"{color_magenta}{min([b['size'] for b in magenta_blocks], default=0):.2f}{color_reset}", f"{color_magenta}{max([b['size'] for b in magenta_blocks], default=0):.2f}{color_reset}"]
     ]
 
     table_str = tabulate(table, headers=headers, tablefmt="pretty")
-    table_str = table_str.replace("+", Fore.LIGHTBLACK_EX + "+" + Style.RESET_ALL).replace("-", Fore.LIGHTBLACK_EX + "-" + Style.RESET_ALL).replace("|", Fore.LIGHTBLACK_EX + "|" + Style.RESET_ALL)
+    table_str = table_str.replace("+", f"{color_dark_grey}+{color_reset}").replace("-", f"{color_dark_grey}-{color_reset}").replace("|", f"{color_dark_grey}|{color_reset}")
     print(table_str)
 
     # Plotting the graphs
     if block_data:
         times = [datetime.fromisoformat(b['time']) for b in block_data]
         sizes = [b['size'] for b in block_data]
-        colors = ['green' if size < 1 else 'yellow' if size < 2 else 'darkorange' if size < 3 else 'red' if size < 5 else 'magenta' for size in sizes]
+        colors = ['green' if size < 1 else 'yellow' if size < 2 else 'orange' if size < 3 else 'red' if size < 5 else 'magenta' for size in sizes]
 
         legend_patches = [
             mpatches.Patch(color='green', label='< 1MB'),
             mpatches.Patch(color='yellow', label='1MB to 2MB'),
-            mpatches.Patch(color='darkorange', label='2MB to 3MB'),
+            mpatches.Patch(color='orange', label='2MB to 3MB'),
             mpatches.Patch(color='red', label='3MB to 5MB'),
             mpatches.Patch(color='magenta', label='> 5MB')
         ]
@@ -306,13 +312,13 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
 
         green_sizes = [sum(sizes[i] for i in range(len(sizes)) if times[i].date() == day and colors[i] == 'green') for day in unique_days]
         yellow_sizes = [sum(sizes[i] for i in range(len(sizes)) if times[i].date() == day and colors[i] == 'yellow') for day in unique_days]
-        orange_sizes = [sum(sizes[i] for i in range(len(sizes)) if times[i].date() == day and colors[i] == 'darkorange') for day in unique_days]
+        orange_sizes = [sum(sizes[i] for i in range(len(sizes)) if times[i].date() == day and colors[i] == 'orange') for day in unique_days]
         red_sizes = [sum(sizes[i] for i in range(len(sizes)) if times[i].date() == day and colors[i] == 'red') for day in unique_days]
         magenta_sizes = [sum(sizes[i] for i in range(len(sizes)) if times[i].date() == day and colors[i] == 'magenta') for day in unique_days]
 
         ax.bar(bar_positions - bar_width * 2, green_sizes, bar_width, label='< 1MB', color='green')
         ax.bar(bar_positions - bar_width, yellow_sizes, bar_width, label='1MB to 2MB', color='yellow')
-        ax.bar(bar_positions, orange_sizes, bar_width, label='2MB to 3MB', color='darkorange')
+        ax.bar(bar_positions, orange_sizes, bar_width, label='2MB to 3MB', color='orange')
         ax.bar(bar_positions + bar_width, red_sizes, bar_width, label='3MB to 5MB', color='red')
         ax.bar(bar_positions + bar_width * 2, magenta_sizes, bar_width, label='> 5MB', color='magenta')
 
@@ -354,7 +360,7 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
 
 if __name__ == "__main__":
     if len(sys.argv) != 5:
-        print(Fore.RED + "Usage: python blockbusteranalyzer.py <lower_height> <upper_height> <endpoint_type> <endpoint_url>" + Style.RESET_ALL)
+        print(f"{color_red}Usage: python blockbusteranalyzer.py <lower_height> <upper_height> <endpoint_type> <endpoint_url>{color_reset}")
         sys.exit(1)
 
     lower_height = int(sys.argv[1])
