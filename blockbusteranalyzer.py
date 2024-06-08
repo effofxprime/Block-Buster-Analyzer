@@ -6,7 +6,7 @@
 # @Twitter - https://twitter.com/ErialosOfAstora
 # @Date - 2024-06-06 15:19:00 UTC
 # @Last_Modified_By - Jonathan - Erialos
-# @Last_Modified_Time - 2024-06-08 01:10:00 UTC
+# @Last_Modified_Time - 2024-06-08 23:00:00 UTC
 # @Description - A tool to analyze block sizes in a blockchain.
 
 import requests
@@ -20,7 +20,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from colorama import Fore, Style, init
 from tabulate import tabulate
 import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
 import matplotlib.patches as mpatches
 import numpy as np
 import signal
@@ -42,7 +41,7 @@ def check_endpoint(endpoint_type, endpoint_url):
         else:
             response = requests.get(f"{endpoint_url}/health", timeout=5)
         return response.status_code == 200
-    except requests.RequestException as e:
+    except requests.RequestException:
         return False
 
 def fetch_block_info(endpoint_type, endpoint_url, height):
@@ -55,7 +54,7 @@ def fetch_block_info(endpoint_type, endpoint_url, height):
             response = requests.get(f"{endpoint_url}/block?height={height}", timeout=10)
             response.raise_for_status()
         return response.json()
-    except requests.RequestException as e:
+    except requests.RequestException:
         return None
 
 def find_lowest_height(endpoint_type, endpoint_url):
@@ -273,10 +272,10 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
         bar_width = 0.2
         bar_positions = np.arange(len(unique_days))
 
-        green_sizes = [sizes[i] if colors[i] == 'green' else 0 for i in range(len(sizes))]
-        yellow_sizes = [sizes[i] if colors[i] == 'yellow' else 0 for i in range(len(sizes))]
-        red_sizes = [sizes[i] if colors[i] == 'red' else 0 for i in range(len(sizes))]
-        magenta_sizes = [sizes[i] if colors[i] == 'magenta' else 0 for i in range(len(sizes))]
+        green_sizes = [sum(sizes[i] for i in range(len(sizes)) if times[i].date() == day and colors[i] == 'green') for day in unique_days]
+        yellow_sizes = [sum(sizes[i] for i in range(len(sizes)) if times[i].date() == day and colors[i] == 'yellow') for day in unique_days]
+        red_sizes = [sum(sizes[i] for i in range(len(sizes)) if times[i].date() == day and colors[i] == 'red') for day in unique_days]
+        magenta_sizes = [sum(sizes[i] for i in range(len(sizes)) if times[i].date() == day and colors[i] == 'magenta') for day in unique_days]
 
         ax.bar(bar_positions - bar_width * 1.5, green_sizes, bar_width, label='< 1MB', color='green')
         ax.bar(bar_positions - bar_width * 0.5, yellow_sizes, bar_width, label='1MB to 3MB', color='yellow')
