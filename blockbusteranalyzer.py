@@ -55,13 +55,14 @@ def fetch_block_info(endpoint_type, endpoint_url, heights):
     try:
         if endpoint_type == "socket":
             session = requests_unixsocket.Session()
-            encoded_url = f"http+unix://{quote_plus(endpoint_url)}/blocks?heights={','.join(map(str, heights))}"
+            encoded_url = f"http+unix://{quote_plus(endpoint_url)}/block?height={heights[0]}"
             response = session.get(encoded_url, timeout=10)
         else:
-            response = requests.get(f"{endpoint_url}/blocks?heights={','.join(map(str, heights))}", timeout=10)
+            response = requests.get(f"{endpoint_url}/block?height={heights[0]}", timeout=10)
             response.raise_for_status()
         return response.json()
-    except requests.RequestException:
+    except requests.RequestException as e:
+        print(f"Error fetching block info for height {heights[0]}: {e}")
         return None
 
 def find_lowest_height(endpoint_type, endpoint_url):
@@ -155,6 +156,7 @@ def main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls):
 
     # Check if the specified starting block height exists
     block_info = fetch_block_info(endpoint_type, endpoint_urls[0], [lower_height])
+    print(f"Block info for height {lower_height}: {block_info}")  # Debugging output
     if block_info is None or 'error' in block_info:
         print(f"{color_yellow}Block height {lower_height} does not exist. Finding the earliest available block height...{color_reset}")
         lower_height = find_lowest_height(endpoint_type, endpoint_urls[0])
