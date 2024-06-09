@@ -23,6 +23,7 @@ import matplotlib.patches as mpatches
 import numpy as np
 import signal
 import threading
+from itertools import cycle
 
 # ANSI escape sequences for 256 colors
 color_green = "\033[38;5;10m"
@@ -60,6 +61,17 @@ def fetch_block_info(endpoint_type, endpoint_url, height):
             response = requests.get(f"{endpoint_url}/block?height={height}", timeout=10)
             response.raise_for_status()
         return response.json()
+    except requests.RequestException:
+        return None
+
+def batch_fetch_block_info(endpoint_type, endpoint_url, heights):
+    try:
+        results = []
+        for height in heights:
+            block_info = fetch_block_info(endpoint_type, endpoint_url, height)
+            if block_info is not None:
+                results.append(block_info)
+        return results
     except requests.RequestException:
         return None
 
@@ -119,6 +131,14 @@ def process_block(height, endpoint_type, endpoint_url):
     block_time = parse_timestamp(block_info['result']['block']['header']['time'])
     return (height, block_size_mb, block_time)
 
+def process_batch_blocks(heights, endpoint_type, endpoint_url):
+    results = []
+    for height in heights:
+        result = process_block(height, endpoint_type, endpoint_url)
+        if result is not None:
+            results.append(result)
+    return results
+
 def signal_handler(sig, frame):
     print(f"{color_red}\nProcess interrupted. Exiting gracefully...{color_reset}")
     shutdown_event.set()
@@ -128,14 +148,14 @@ def signal_handler(sig, frame):
 
 signal.signal(signal.SIGINT, signal_handler)
 
-def main(lower_height, upper_height, endpoint_type, endpoint_url):
+def main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls):
     global executor
     print(f"{color_light_blue}\nChecking the specified starting block height...{color_reset}")
 
     # Health check
     retries = 3
     for attempt in range(retries):
-        if check_endpoint(endpoint_type, endpoint_url):
+        if any(check_endpoint(endpoint_type, url) for url in endpoint_urls):
             break
         else:
             print(f"{color_yellow}RPC endpoint unreachable. Retrying {attempt + 1}/{retries}...{color_reset}")
@@ -144,10 +164,10 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
         print(f"{color_red}RPC endpoint unreachable after multiple attempts. Exiting.{color_reset}")
         sys.exit(1)
 
-    block_info = fetch_block_info(endpoint_type, endpoint_url, lower_height)
+    block_info = fetch_block_info(endpoint_type, endpoint_urls[0], lower_height)
     if block_info is None:
         print(f"{color_yellow}Block height {lower_height} does not exist. Finding the earliest available block height...{color_reset}")
-        lower_height = find_lowest_height(endpoint_type, endpoint_url)
+        lower_height = find_lowest_height(endpoint_type, endpoint_urls[0])
         if lower_height is None:
             print(f"{color_red}Failed to determine the earliest block height. Exiting.{color_reset}")
             sys.exit(1)
@@ -176,38 +196,41 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
 
     print(f"{color_dark_grey}\n{'='*40}\n{color_reset}")
 
-    executor = ThreadPoolExecutor(max_workers=10)
-    future_to_height = {executor.submit(process_block, height, endpoint_type, endpoint_url): height for height in range(lower_height, upper_height + 1)}
+    executor = ThreadPoolExecutor(max_workers=num_workers)
+    batch_size = 100
+    endpoint_cycle = cycle(endpoint_urls)
+    future_to_batch = {executor.submit(process_batch_blocks, range(height, min(height + batch_size, upper_height + 1)), endpoint_type, next(endpoint_cycle)): height for height in range(lower_height, upper_height + 1, batch_size)}
 
     completed = 0
     try:
-        for future in as_completed(future_to_height):
+        for future in as_completed(future_to_batch):
             if shutdown_event.is_set():
                 break
 
             try:
-                result = future.result()
-                if result is None:
+                results = future.result()
+                if results is None:
                     continue
 
-                height, block_size_mb, block_time = result
-                block_data.append({"height": height, "size": block_size_mb, "time": block_time.isoformat()})
+                for result in results:
+                    height, block_size_mb, block_time = result
+                    block_data.append({"height": height, "size": block_size_mb, "time": block_time.isoformat()})
 
-                if block_size_mb > 5:
-                    magenta_blocks.append({"height": height, "size": block_size_mb, "time": block_time.isoformat()})
-                elif block_size_mb > 3:
-                    red_blocks.append({"height": height, "size": block_size_mb, "time": block_time.isoformat()})
-                elif block_size_mb > 2:
-                    orange_blocks.append({"height": height, "size": block_size_mb, "time": block_time.isoformat()})
-                elif block_size_mb > 1:
-                    yellow_blocks.append({"height": height, "size": block_size_mb, "time": block_time.isoformat()})
-                else:
-                    green_blocks.append({"height": height, "size": block_size_mb, "time": block_time.isoformat()})
+                    if block_size_mb > 5:
+                        magenta_blocks.append({"height": height, "size": block_size_mb, "time": block_time.isoformat()})
+                    elif block_size_mb > 3:
+                        red_blocks.append({"height": height, "size": block_size_mb, "time": block_time.isoformat()})
+                    elif block_size_mb > 2:
+                        orange_blocks.append({"height": height, "size": block_size_mb, "time": block_time.isoformat()})
+                    elif block_size_mb > 1:
+                        yellow_blocks.append({"height": height, "size": block_size_mb, "time": block_time.isoformat()})
+                    else:
+                        green_blocks.append({"height": height, "size": block_size_mb, "time": block_time.isoformat()})
 
             except Exception as e:
-                print(f"Error processing block {future_to_height[future]}: {e}")
+                print(f"Error processing blocks {future_to_batch[future]}: {e}")
 
-            completed += 1
+            completed += len(results)
             progress = (completed / total_blocks) * 100
             elapsed_time = time.time() - start_script_time
             estimated_total_time = elapsed_time / completed * total_blocks
@@ -224,7 +247,7 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
 
     result = {
         "connection_type": endpoint_type,
-        "endpoint": endpoint_url,
+        "endpoint": endpoint_urls,
         "run_time": current_date,
         "less_than_1MB": green_blocks,
         "1MB_to_2MB": yellow_blocks,
@@ -359,13 +382,14 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
         print("No data to plot.")
 
 if __name__ == "__main__":
-    if len(sys.argv) != 5:
-        print(f"{color_red}Usage: python blockbusteranalyzer.py <lower_height> <upper_height> <endpoint_type> <endpoint_url>{color_reset}")
+    if len(sys.argv) != 6:
+        print(f"{color_red}Usage: python blockbusteranalyzer.py <num_workers> <lower_height> <upper_height> <endpoint_type> <endpoint_urls_comma_separated>{color_reset}")
         sys.exit(1)
 
-    lower_height = int(sys.argv[1])
-    upper_height = int(sys.argv[2])
-    endpoint_type = sys.argv[3]
-    endpoint_url = sys.argv[4]
+    num_workers = int(sys.argv[1])
+    lower_height = int(sys.argv[2])
+    upper_height = int(sys.argv[3])
+    endpoint_type = sys.argv[4]
+    endpoint_urls = sys.argv[5].split(",")
 
-    main(lower_height, upper_height, endpoint_type, endpoint_url)
+    main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls)
