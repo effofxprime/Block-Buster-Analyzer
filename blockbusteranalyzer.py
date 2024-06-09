@@ -23,6 +23,7 @@ import matplotlib.patches as mpatches
 import numpy as np
 import signal
 import threading
+from itertools import cycle
 
 # ANSI escape sequences for 256 colors
 color_green = "\033[38;5;10m"
@@ -50,14 +51,14 @@ def check_endpoint(endpoint_type, endpoint_url):
     except requests.RequestException:
         return False
 
-def fetch_block_info(endpoint_type, endpoint_url, height):
+def fetch_block_info(endpoint_type, endpoint_url, heights):
     try:
         if endpoint_type == "socket":
             session = requests_unixsocket.Session()
-            encoded_url = f"http+unix://{quote_plus(endpoint_url)}/block?height={height}"
+            encoded_url = f"http+unix://{quote_plus(endpoint_url)}/blocks?heights={','.join(map(str, heights))}"
             response = session.get(encoded_url, timeout=10)
         else:
-            response = requests.get(f"{endpoint_url}/block?height={height}", timeout=10)
+            response = requests.get(f"{endpoint_url}/blocks?heights={','.join(map(str, heights))}", timeout=10)
             response.raise_for_status()
         return response.json()
     except requests.RequestException:
@@ -105,19 +106,24 @@ def parse_timestamp(timestamp):
     except ValueError:
         raise ValueError(f"time data '{timestamp}' does not match any known format")
 
-def process_block(height, endpoint_type, endpoint_url):
-    if shutdown_event.is_set():
-        return None
+def process_blocks(heights, endpoint_type, endpoint_urls):
+    results = []
+    endpoints = cycle(endpoint_urls)
+    for height in heights:
+        if shutdown_event.is_set():
+            break
+        endpoint_url = next(endpoints)
+        block_info = fetch_block_info(endpoint_type, endpoint_url, [height])
+        if block_info is None:
+            continue
 
-    block_info = fetch_block_info(endpoint_type, endpoint_url, height)
-    if block_info is None:
-        return None
+        for block in block_info['result']['blocks']:
+            block_size = len(json.dumps(block))
+            block_size_mb = block_size / 1048576
 
-    block_size = len(json.dumps(block_info))
-    block_size_mb = block_size / 1048576
-
-    block_time = parse_timestamp(block_info['result']['block']['header']['time'])
-    return (height, block_size_mb, block_time)
+            block_time = parse_timestamp(block['header']['time'])
+            results.append((height, block_size_mb, block_time))
+    return results
 
 def signal_handler(sig, frame):
     print(f"{color_red}\nProcess interrupted. Exiting gracefully...{color_reset}")
@@ -128,26 +134,29 @@ def signal_handler(sig, frame):
 
 signal.signal(signal.SIGINT, signal_handler)
 
-def main(lower_height, upper_height, endpoint_type, endpoint_url):
+def main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls):
     global executor
     print(f"{color_light_blue}\nChecking the specified starting block height...{color_reset}")
 
     # Health check
     retries = 3
     for attempt in range(retries):
-        if check_endpoint(endpoint_type, endpoint_url):
-            break
+        for endpoint_url in endpoint_urls:
+            if check_endpoint(endpoint_type, endpoint_url):
+                break
         else:
             print(f"{color_yellow}RPC endpoint unreachable. Retrying {attempt + 1}/{retries}...{color_reset}")
             time.sleep(5)
+            continue
+        break
     else:
         print(f"{color_red}RPC endpoint unreachable after multiple attempts. Exiting.{color_reset}")
         sys.exit(1)
 
-    block_info = fetch_block_info(endpoint_type, endpoint_url, lower_height)
+    block_info = fetch_block_info(endpoint_type, endpoint_urls[0], [lower_height])
     if block_info is None:
         print(f"{color_yellow}Block height {lower_height} does not exist. Finding the earliest available block height...{color_reset}")
-        lower_height = find_lowest_height(endpoint_type, endpoint_url)
+        lower_height = find_lowest_height(endpoint_type, endpoint_urls[0])
         if lower_height is None:
             print(f"{color_red}Failed to determine the earliest block height. Exiting.{color_reset}")
             sys.exit(1)
@@ -176,38 +185,43 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
 
     print(f"{color_dark_grey}\n{'='*40}\n{color_reset}")
 
-    executor = ThreadPoolExecutor(max_workers=10)
-    future_to_height = {executor.submit(process_block, height, endpoint_type, endpoint_url): height for height in range(lower_height, upper_height + 1)}
+    batch_size = 100  # Adjust this based on API capabilities and rate limits
+    executor = ThreadPoolExecutor(max_workers=num_workers)
+    future_to_height = {}
+    futures = []
+    for i in range(lower_height, upper_height + 1, batch_size):
+        batch_heights = list(range(i, min(i + batch_size, upper_height + 1)))
+        future = executor.submit(process_blocks, batch_heights, endpoint_type, endpoint_urls)
+        futures.append(future)
+        future_to_height[future] = batch_heights
 
     completed = 0
     try:
-        for future in as_completed(future_to_height):
+        for future in as_completed(futures):
             if shutdown_event.is_set():
                 break
 
             try:
-                result = future.result()
-                if result is None:
-                    continue
+                results = future.result()
+                for result in results:
+                    height, block_size_mb, block_time = result
+                    block_data.append({"height": height, "size": block_size_mb, "time": block_time.isoformat()})
 
-                height, block_size_mb, block_time = result
-                block_data.append({"height": height, "size": block_size_mb, "time": block_time.isoformat()})
-
-                if block_size_mb > 5:
-                    magenta_blocks.append({"height": height, "size": block_size_mb, "time": block_time.isoformat()})
-                elif block_size_mb > 3:
-                    red_blocks.append({"height": height, "size": block_size_mb, "time": block_time.isoformat()})
-                elif block_size_mb > 2:
-                    orange_blocks.append({"height": height, "size": block_size_mb, "time": block_time.isoformat()})
-                elif block_size_mb > 1:
-                    yellow_blocks.append({"height": height, "size": block_size_mb, "time": block_time.isoformat()})
-                else:
-                    green_blocks.append({"height": height, "size": block_size_mb, "time": block_time.isoformat()})
+                    if block_size_mb > 5:
+                        magenta_blocks.append({"height": height, "size": block_size_mb, "time": block_time.isoformat()})
+                    elif block_size_mb > 3:
+                        red_blocks.append({"height": height, "size": block_size_mb, "time": block_time.isoformat()})
+                    elif block_size_mb > 2:
+                        orange_blocks.append({"height": height, "size": block_size_mb, "time": block_time.isoformat()})
+                    elif block_size_mb > 1:
+                        yellow_blocks.append({"height": height, "size": block_size_mb, "time": block_time.isoformat()})
+                    else:
+                        green_blocks.append({"height": height, "size": block_size_mb, "time": block_time.isoformat()})
 
             except Exception as e:
-                print(f"Error processing block {future_to_height[future]}: {e}")
+                print(f"Error processing blocks {future_to_height[future]}: {e}")
 
-            completed += 1
+            completed += len(future_to_height[future])
             progress = (completed / total_blocks) * 100
             elapsed_time = time.time() - start_script_time
             estimated_total_time = elapsed_time / completed * total_blocks
@@ -224,7 +238,7 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
 
     result = {
         "connection_type": endpoint_type,
-        "endpoint": endpoint_url,
+        "endpoint": endpoint_urls,
         "run_time": current_date,
         "less_than_1MB": green_blocks,
         "1MB_to_2MB": yellow_blocks,
@@ -279,7 +293,7 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
     headers = [f"{color_light_blue}Block Size Range{color_reset}", f"{color_light_blue}Count{color_reset}", f"{color_light_blue}Average Size (MB){color_reset}", f"{color_light_blue}Min Size (MB){color_reset}", f"{color_light_blue}Max Size (MB){color_reset}"]
     table = [
         [f"{color_green}Less than 1MB{color_reset}", f"{color_green}{len(green_blocks)}{color_reset}", f"{color_green}{calculate_avg([b['size'] for b in green_blocks]):.2f}{color_reset}", f"{color_green}{min([b['size'] for b in green_blocks], default=0):.2f}{color_reset}", f"{color_green}{max([b['size'] for b in green_blocks], default=0):.2f}{color_reset}"],
-        [f"{color_yellow}1MB to 2MB{color_reset}", f"{color_yellow}{len(yellow_blocks)}{color_reset}", f"{color_yellow}{calculate_avg([b['size'] for b in yellow_blocks]):.2f}{color_reset}", f"{color_yellow}{min([b['size'] for b in yellow_blocks], default=0):.2f}{color_reset}", f"{color_yellow}{max([b['size'] for b in yellow_blocks], default=0):.2f}{color_reset}"],
+        [f"{color_yellow}1MB to 2MB{color_reset}", f"{color_yellow}{len(yellow_blocks)}{color_reset}", f"{color_yellow}{calculate_avg([b['size'] for b in yellow_blocks])::.2f}{color_reset}", f"{color_yellow}{min([b['size'] for b in yellow_blocks], default=0):.2f}{color_reset}", f"{color_yellow}{max([b['size'] for b in yellow_blocks], default=0):.2f}{color_reset}"],
         [f"{color_orange}2MB to 3MB{color_reset}", f"{color_orange}{len(orange_blocks)}{color_reset}", f"{color_orange}{calculate_avg([b['size'] for b in orange_blocks]):.2f}{color_reset}", f"{color_orange}{min([b['size'] for b in orange_blocks], default=0):.2f}{color_reset}", f"{color_orange}{max([b['size'] for b in orange_blocks], default=0):.2f}{color_reset}"],
         [f"{color_red}3MB to 5MB{color_reset}", f"{color_red}{len(red_blocks)}{color_reset}", f"{color_red}{calculate_avg([b['size'] for b in red_blocks]):.2f}{color_reset}", f"{color_red}{min([b['size'] for b in red_blocks], default=0):.2f}{color_reset}", f"{color_red}{max([b['size'] for b in red_blocks], default=0):.2f}{color_reset}"],
         [f"{color_magenta}Greater than 5MB{color_reset}", f"{color_magenta}{len(magenta_blocks)}{color_reset}", f"{color_magenta}{calculate_avg([b['size'] for b in magenta_blocks]):.2f}{color_reset}", f"{color_magenta}{min([b['size'] for b in magenta_blocks], default=0):.2f}{color_reset}", f"{color_magenta}{max([b['size'] for b in magenta_blocks], default=0):.2f}{color_reset}"]
@@ -359,13 +373,14 @@ def main(lower_height, upper_height, endpoint_type, endpoint_url):
         print("No data to plot.")
 
 if __name__ == "__main__":
-    if len(sys.argv) != 5:
-        print(f"{color_red}Usage: python blockbusteranalyzer.py <lower_height> <upper_height> <endpoint_type> <endpoint_url>{color_reset}")
+    if len(sys.argv) < 6:
+        print(f"{color_red}Usage: python blockbusteranalyzer.py <num_workers> <lower_height> <upper_height> <endpoint_type> <endpoint_url1,endpoint_url2,...>{color_reset}")
         sys.exit(1)
 
-    lower_height = int(sys.argv[1])
-    upper_height = int(sys.argv[2])
-    endpoint_type = sys.argv[3]
-    endpoint_url = sys.argv[4]
+    num_workers = int(sys.argv[1])
+    lower_height = int(sys.argv[2])
+    upper_height = int(sys.argv[3])
+    endpoint_type = sys.argv[4]
+    endpoint_urls = sys.argv[5].split(',')
 
-    main(lower_height, upper_height, endpoint_type, endpoint_url)
+    main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls)

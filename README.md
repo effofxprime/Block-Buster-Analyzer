@@ -1,15 +1,15 @@
 # BlockBusterAnalyzer
 
-BlockBusterAnalyzer is a fun and catchy tool to monitor and analyze the sizes of blocks in a blockchain. It supports both Python and Bash scripts to query block sizes over a specified range and categorize them into different size groups.
+BlockBusterAnalyzer is a tool to monitor and analyze the sizes of blocks in a blockchain. It is a Python script that queries block sizes over a specified range and categorizes them into different size groups for statistical information.
 
 ## Features
 
 - Query block sizes within a specified range
-- Categorize blocks into size groups (1MB to 3MB, 3MB to 5MB, greater than 5MB)
+- Categorize blocks into size groups (<1MB, 1MB<2MB, 2MB<3MB, 3MB<5MB, greater than 5MB)
 - Supports both Unix sockets and TCP endpoints
 - Generates a JSON report with the results
 - Provides progress updates during execution, including estimated time left and total duration
-- Uses multithreading (Python) and parallel processing (Bash) to improve performance for large block ranges
+- Uses multithreading to improve performance for large block ranges
 - Pretty console output with colors and table formatting
 - Plots a graph of block size over time
 
@@ -23,12 +23,6 @@ BlockBusterAnalyzer is a fun and catchy tool to monitor and analyze the sizes of
 - `tabulate`
 - `matplotlib`
 - `concurrent.futures` (standard library, no extra installation required)
-
-### Bash
-
-- `curl`
-- `jq`
-- `bc`
 
 ## Installation
 
@@ -58,23 +52,6 @@ BlockBusterAnalyzer is a fun and catchy tool to monitor and analyze the sizes of
     sudo apt-get install python3-requests python3-requests-unixsocket python3-colorama python3-tabulate python3-matplotlib
     ```
 
-### Bash
-
-1. **Install `curl`, `jq`, and `bc`**
-
-    On Ubuntu/Debian:
-
-    ```sh
-    sudo apt-get update
-    sudo apt-get install curl jq bc
-    ```
-
-    On CentOS/RHEL:
-
-    ```sh
-    sudo yum install curl jq bc
-    ```
-
 ## Usage
 
 ### Python Script
@@ -82,42 +59,19 @@ BlockBusterAnalyzer is a fun and catchy tool to monitor and analyze the sizes of
 1. **Run the script**
 
     ```sh
-    python3 blockbusteranalyzer.py <lower_height> <upper_height> <endpoint_type> <endpoint_url>
+    python3 blockbusteranalyzer.py <num_workers> <lower_height> <upper_height> <endpoint_type> <endpoint_url1,endpoint_url2,...>
     ```
 
     Example:
 
     ```sh
-    python3 blockbusteranalyzer.py 7874000 7875000 "socket" "/dev/shm/jackal/trpc.socket"
-    python3 blockbusteranalyzer.py 7874000 7875000 "tcp" "https://rpc.jackalprotocol.com:443"
-    ```
-
-### Bash Script
-
-1. **Make the script executable**
-
-    ```sh
-    chmod +x blockbusteranalyzer.sh
-    ```
-
-2. **Run the script**
-
-    ```sh
-    ./blockbusteranalyzer.sh <lower_height> <upper_height> <endpoint_type> <endpoint_url>
-    ```
-
-    Example:
-
-    ```sh
-    ./blockbusteranalyzer.sh 7874000 7875000 "socket" "/dev/shm/jackal/trpc.socket"
-    ./blockbusteranalyzer.sh 7874000 7875000 "tcp" "https://rpc.jackalprotocol.com:443"
+    python3 blockbusteranalyzer.py 10 7500000 7909000 "tcp" "https://rpc.jackalprotocol.com:443,https://another.rpc.endpoint:443"
+    python3 blockbusteranalyzer.py 10 7500000 7909000 "socket" "/dev/shm/jackal/trpc.socket"
     ```
 
 ## Output
 
-The scripts will generate a JSON file with a name in the format `block_sizes_<lower_height>_to_<upper_height>_<current_date>.json` containing the block sizes categorized into the specified groups. The file will be saved in the current directory.
-
-Additionally, a graph of block size over time will be saved as a PNG file.
+The script will output the block sizes in JSON format and generate various graphs based on the block size data.
 
 ## Contributing
 
