@@ -6,7 +6,7 @@
 # @Twitter - https://twitter.com/ErialosOfAstora
 # @Date - 2024-06-06 15:19:00 UTC
 # @Last_Modified_By - Jonathan - Erialos
-# @Last_Modified_Time - 2024-06-10 23:00:00 UTC
+# @Last_Modified_Time - 2024-06-10 21:14:16 UTC
 # @Description - A tool to analyze block sizes in a blockchain.
 
 import requests
@@ -32,6 +32,8 @@ color_red = "\033[38;5;9m"
 color_magenta = "\033[38;5;13m"
 color_light_blue = "\033[38;5;123m"
 color_dark_grey = "\033[38;5;245m"
+color_written = "\033[38;5;121m"
+color_title = "\033[38;5;74m"
 color_reset = "\033[0m"
 
 # Global variable to manage executor shutdown
@@ -135,7 +137,7 @@ def main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls):
     # Health check
     retries = 3
     for attempt in range(retries):
-        if check_endpoint(endpoint_type, endpoint_urls[0]):
+        if all(check_endpoint(endpoint_type, url) for url in endpoint_urls):
             break
         else:
             print(f"{color_yellow}RPC endpoint unreachable. Retrying {attempt + 1}/{retries}...{color_reset}")
@@ -173,11 +175,13 @@ def main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls):
 
     total_blocks = upper_height - lower_height + 1
     start_script_time = time.time()
+    estimated_time = None
+    first_estimate = False
 
     print(f"{color_dark_grey}\n{'='*40}\n{color_reset}")
 
     executor = ThreadPoolExecutor(max_workers=num_workers)
-    future_to_height = {executor.submit(process_block, height, endpoint_type, endpoint_urls[0]): height for height in range(lower_height, upper_height + 1)}
+    future_to_height = {executor.submit(process_block, height, endpoint_type, endpoint_urls[height % len(endpoint_urls)]): height for height in range(lower_height, upper_height + 1)}
 
     completed = 0
     try:
@@ -212,6 +216,9 @@ def main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls):
             elapsed_time = time.time() - start_script_time
             estimated_total_time = elapsed_time / completed * total_blocks
             time_left = estimated_total_time - elapsed_time
+            if estimated_time is None or abs(estimated_time - estimated_total_time) > 60:  # Update the estimate if it changes significantly
+                estimated_time = estimated_total_time
+                first_estimate = True
             print(f"{color_light_blue}Progress: {progress:.2f}% ({completed}/{total_blocks}) - Estimated time left: {timedelta(seconds=int(time_left))}", end='\r')
     except KeyboardInterrupt:
         shutdown_event.set()
@@ -271,10 +278,13 @@ def main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls):
 
     end_script_time = time.time()
     total_duration = end_script_time - start_script_time
-    print(f"{color_green}\nBlock sizes have been written to {output_file}{color_reset}")
+    print(f"{color_written}\nBlock sizes have been written to {output_file}{color_reset}")
     print(f"{color_light_blue}Script completed in: {timedelta(seconds=int(total_duration))}{color_reset}")
+    print(f"{color_light_blue}Actual Script Execution Time: {timedelta(seconds=int(total_duration))}{color_reset}")
+    if first_estimate:
+        print(f"{color_light_blue}Estimated Script Execution Time: {timedelta(seconds=int(estimated_time))}{color_reset}")
 
-    print(f"{color_magenta}\nNumber of blocks in each group for block heights {lower_height} to {upper_height}:{color_reset}")
+    print(f"{color_title}\nNumber of blocks in each group for block heights {lower_height} to {upper_height}:{color_reset}")
 
     headers = [f"{color_light_blue}Block Size Range{color_reset}", f"{color_light_blue}Count{color_reset}", f"{color_light_blue}Average Size (MB){color_reset}", f"{color_light_blue}Min Size (MB){color_reset}", f"{color_light_blue}Max Size (MB){color_reset}"]
     table = [
@@ -367,6 +377,6 @@ if __name__ == "__main__":
     lower_height = int(sys.argv[2])
     upper_height = int(sys.argv[3])
     endpoint_type = sys.argv[4]
-    endpoint_urls = sys.argv[5].split(",")
+    endpoint_urls = sys.argv[5].split(',')
 
     main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls)
