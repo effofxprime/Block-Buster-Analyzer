@@ -142,6 +142,7 @@ def generate_graphs_and_table(data, output_image_file_base, lower_height, upper_
     red_blocks = data["3MB_to_5MB"]
     magenta_blocks = data["greater_than_5MB"]
 
+    print(f"{color_teal}\nNumber of blocks in each group for block heights {lower_height} to {upper_height}:{color_reset}")
     headers = [f"{color_teal}Block Size Range{color_reset}", f"{color_teal}Count{color_reset}", f"{color_teal}Percentage{color_reset}", f"{color_teal}Average Size (MB){color_reset}", f"{color_teal}Min Size (MB){color_reset}", f"{color_teal}Max Size (MB){color_reset}"]
     table = [
         [f"{color_green}Less than 1MB{color_reset}", f"{color_green}{len(green_blocks)}{color_reset}", f"{color_green}{len(green_blocks) / total_blocks * 100:.2f}%{color_reset}", f"{color_green}{calculate_avg([b['size'] for b in green_blocks]):.2f}{color_reset}", f"{color_green}{min([b['size'] for b in green_blocks], default=0):.2f}{color_reset}", f"{color_green}{max([b['size'] for b in green_blocks], default=0):.2f}{color_reset}"],
@@ -169,6 +170,7 @@ def generate_graphs_and_table(data, output_image_file_base, lower_height, upper_
         ]
 
         # Grouped bar chart
+        print(f"{color_light_blue}Generating the bar chart...{color_reset}")
         fig, ax = plt.subplots(figsize=(38, 20))
 
         unique_days = list(sorted(set([dt.date() for dt in times])))
@@ -190,6 +192,7 @@ def generate_graphs_and_table(data, output_image_file_base, lower_height, upper_
         ax.set_title(f'Block Size Over Time (Grouped Bar Chart)\nBlock Heights {lower_height} to {upper_height}', fontsize=28)
         ax.set_xlabel('Time', fontsize=24)
         ax.set_ylabel('Block Size (MB)', fontsize=24)
+        ax.set_ylim(0, 15)  # Ensure the y-axis is in the correct range
         ax.set_xticks(bar_positions)
         ax.set_xticklabels([str(day) for day in unique_days], rotation=45, ha='right', fontsize=20)
         ax.tick_params(axis='y', labelsize=20)
@@ -199,7 +202,7 @@ def generate_graphs_and_table(data, output_image_file_base, lower_height, upper_
         print(f"{color_light_green}Bar chart generated successfully.{color_reset}")
 
         # Scatter plot
-        print(f"{color_teal}Generating the scatter plot...{color_reset}")
+        print(f"{color_light_blue}Generating the scatter plot...{color_reset}")
         fig, ax = plt.subplots(figsize=(38, 20))
         ax.scatter(times, sizes, color=colors)
         ax.set_title(f'Block Size Over Time (Scatter Plot)\nBlock Heights {lower_height} to {upper_height}', fontsize=28)
@@ -213,7 +216,7 @@ def generate_graphs_and_table(data, output_image_file_base, lower_height, upper_
         print(f"{color_light_green}Scatter plot generated successfully.{color_reset}")
 
         # Histogram plot
-        print(f"{color_teal}Generating the histogram plot...{color_reset}")
+        print(f"{color_light_blue}Generating the histogram plot...{color_reset}")
         fig, ax = plt.subplots(figsize=(38, 20))
         ax.hist(sizes, bins=50, color='b', edgecolor='black')
         ax.set_title(f'Block Size Distribution (Histogram)\nBlock Heights {lower_height} to {upper_height}', fontsize=28)
@@ -266,7 +269,7 @@ def main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls, 
         lower_height = find_lowest_height(endpoint_type, endpoint_urls)
         if lower_height is None:
             print(f"{color_red}Failed to determine the earliest block height. Exiting.{color_reset}")
-            sys.exit(1)
+        sys.exit(1)
         print(f"{color_light_blue}Using earliest available block height: {lower_height}{color_reset}")
 
     if lower_height > upper_height:
@@ -346,7 +349,7 @@ def main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls, 
         "1MB_to_2MB": yellow_blocks,
         "2MB_to_3MB": orange_blocks,
         "3MB_to_5MB": red_blocks,
-        "greater_than_5MB": magenta_blocks,
+        "greater_than 5MB": magenta_blocks,
         "block_data": block_data,
         "stats": {
             "less_than_1MB": {
