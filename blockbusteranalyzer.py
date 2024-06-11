@@ -6,7 +6,8 @@
 # @Twitter - https://twitter.com/ErialosOfAstora
 # @Date - 2024-06-06 15:19:00 UTC
 # @Last_Modified_By - Jonathan - Erialos
-# @Last_Modified_Time - 2024-06-11 23:00:00 UTC
+# @Last_Modified_Time - 2024-06-12 07:41:00 UTC
+# @Version - 1.0.2
 # @Description - A tool to analyze block sizes in a blockchain.
 
 import requests
@@ -34,7 +35,7 @@ color_magenta = "\033[38;5;13m"  # Magenta
 color_light_blue = "\033[38;5;123m"  # Light Blue
 color_dark_grey = "\033[38;5;245m"  # Dark Grey
 color_written = "\033[38;5;121m"  # Light Green
-color_title = "\033[38;5;74m"  # Teal
+color_teal = "\033[38;5;74m"  # Teal
 color_reset = "\033[0m"  # Reset
 
 # Global variable to manage executor shutdown
@@ -117,7 +118,7 @@ def process_block(height, endpoint_type, endpoint_url):
         return None
 
     block_size = len(json.dumps(block_info))
-    block_size_mb = block_size / 1048576
+    block_size_mb = block_size / 1048576  # Base 2: 1MB = 1,048,576 bytes
 
     block_time = parse_timestamp(block_info['result']['block']['header']['time'])
     return (height, block_size_mb, block_time)
@@ -132,23 +133,16 @@ def signal_handler(sig, frame):
 signal.signal(signal.SIGINT, signal_handler)
 
 def generate_graphs_and_table(data, output_image_file_base, lower_height, upper_height):
-    start_script_time = data["start_script_time"]
-    total_duration = data["total_duration"]
     block_data = data["block_data"]
-
-    green_blocks = data.get("less_than_1MB", [])
-    yellow_blocks = data.get("1MB_to_2MB", [])
-    orange_blocks = data.get("2MB_to_3MB", [])
-    red_blocks = data.get("3MB_to_5MB", [])
-    magenta_blocks = data.get("greater_than_5MB", [])
-
-    print(f"{color_written}\nBlock sizes have been written to {output_image_file_base}.json{color_reset}")
-    print(f"{color_teal}Script completed in: {timedelta(seconds=int(total_duration))}{color_reset}")
-
-    print(f"{color_title}\nNumber of blocks in each group for block heights {lower_height} to {upper_height}:{color_reset}")
-
     total_blocks = len(block_data)
-    headers = [f"{color_light_blue}Block Size Range{color_reset}", f"{color_light_blue}Count{color_reset}", f"{color_light_blue}Percentage{color_reset}", f"{color_light_blue}Average Size (MB){color_reset}", f"{color_light_blue}Min Size (MB){color_reset}", f"{color_light_blue}Max Size (MB){color_reset}"]
+
+    green_blocks = data["less_than_1MB"]
+    yellow_blocks = data["1MB_to_2MB"]
+    orange_blocks = data["2MB_to_3MB"]
+    red_blocks = data["3MB_to_5MB"]
+    magenta_blocks = data["greater_than_5MB"]
+
+    headers = [f"{color_teal}Block Size Range{color_reset}", f"{color_teal}Count{color_reset}", f"{color_teal}Percentage{color_reset}", f"{color_teal}Average Size (MB){color_reset}", f"{color_teal}Min Size (MB){color_reset}", f"{color_teal}Max Size (MB){color_reset}"]
     table = [
         [f"{color_green}Less than 1MB{color_reset}", f"{color_green}{len(green_blocks)}{color_reset}", f"{color_green}{len(green_blocks) / total_blocks * 100:.2f}%{color_reset}", f"{color_green}{calculate_avg([b['size'] for b in green_blocks]):.2f}{color_reset}", f"{color_green}{min([b['size'] for b in green_blocks], default=0):.2f}{color_reset}", f"{color_green}{max([b['size'] for b in green_blocks], default=0):.2f}{color_reset}"],
         [f"{color_yellow}1MB to 2MB{color_reset}", f"{color_yellow}{len(yellow_blocks)}{color_reset}", f"{color_yellow}{len(yellow_blocks) / total_blocks * 100:.2f}%{color_reset}", f"{color_yellow}{calculate_avg([b['size'] for b in yellow_blocks]):.2f}{color_reset}", f"{color_yellow}{min([b['size'] for b in yellow_blocks], default=0):.2f}{color_reset}", f"{color_yellow}{max([b['size'] for b in yellow_blocks], default=0):.2f}{color_reset}"],
@@ -159,6 +153,7 @@ def generate_graphs_and_table(data, output_image_file_base, lower_height, upper_
 
     table_str = tabulate(table, headers=headers, tablefmt="pretty")
     table_str = table_str.replace("+", f"{color_dark_grey}+{color_reset}").replace("-", f"{color_dark_grey}-{color_reset}").replace("|", f"{color_dark_grey}|{color_reset}")
+    print(f"{color_magenta}\nNumber of blocks in each group for block heights {lower_height} to {upper_height}:{color_reset}")
     print(table_str)
 
     if block_data:
