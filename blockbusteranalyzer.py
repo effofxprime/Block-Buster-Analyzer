@@ -6,7 +6,7 @@
 # @Twitter - https://twitter.com/ErialosOfAstora
 # @Date - 2024-06-06 15:19:00 UTC
 # @Last_Modified_By - Jonathan - Erialos
-# @Last_Modified_Time - 2024-06-11 20:23:00 UTC
+# @Last_Modified_Time - 2024-06-12 01:00:00 UTC
 # @Version - 1.0.3
 # @Description - A tool to analyze block sizes in a blockchain.
 
@@ -142,8 +142,7 @@ def generate_graphs_and_table(data, output_image_file_base, lower_height, upper_
     red_blocks = data["3MB_to_5MB"]
     magenta_blocks = data["greater_than_5MB"]
 
-    print(f"{color_light_green}\nNumber of blocks in each group for block heights {lower_height} to {upper_height}:{color_reset}")
-    headers = [f"{color_light_blue}Block Size Range{color_reset}", f"{color_light_blue}Count{color_reset}", f"{color_light_blue}Percentage{color_reset}", f"{color_light_blue}Average Size (MB){color_reset}", f"{color_light_blue}Min Size (MB){color_reset}", f"{color_light_blue}Max Size (MB){color_reset}"]
+    headers = [f"{color_teal}Block Size Range{color_reset}", f"{color_teal}Count{color_reset}", f"{color_teal}Percentage{color_reset}", f"{color_teal}Average Size (MB){color_reset}", f"{color_teal}Min Size (MB){color_reset}", f"{color_teal}Max Size (MB){color_reset}"]
     table = [
         [f"{color_green}Less than 1MB{color_reset}", f"{color_green}{len(green_blocks)}{color_reset}", f"{color_green}{len(green_blocks) / total_blocks * 100:.2f}%{color_reset}", f"{color_green}{calculate_avg([b['size'] for b in green_blocks]):.2f}{color_reset}", f"{color_green}{min([b['size'] for b in green_blocks], default=0):.2f}{color_reset}", f"{color_green}{max([b['size'] for b in green_blocks], default=0):.2f}{color_reset}"],
         [f"{color_yellow}1MB to 2MB{color_reset}", f"{color_yellow}{len(yellow_blocks)}{color_reset}", f"{color_yellow}{len(yellow_blocks) / total_blocks * 100:.2f}%{color_reset}", f"{color_yellow}{calculate_avg([b['size'] for b in yellow_blocks]):.2f}{color_reset}", f"{color_yellow}{min([b['size'] for b in yellow_blocks], default=0):.2f}{color_reset}", f"{color_yellow}{max([b['size'] for b in yellow_blocks], default=0):.2f}{color_reset}"],
@@ -170,7 +169,6 @@ def generate_graphs_and_table(data, output_image_file_base, lower_height, upper_
         ]
 
         # Grouped bar chart
-        print(f"{color_teal}Generating the bar chart...{color_reset}")
         fig, ax = plt.subplots(figsize=(38, 20))
 
         unique_days = list(sorted(set([dt.date() for dt in times])))
@@ -198,7 +196,7 @@ def generate_graphs_and_table(data, output_image_file_base, lower_height, upper_
         ax.legend(loc='upper right', fontsize=20)
         plt.tight_layout()
         plt.savefig(f"{output_image_file_base}_bar_chart.png")
-        print(f"{color_teal}Bar chart generated successfully.{color_reset}")
+        print(f"{color_light_green}Bar chart generated successfully.{color_reset}")
 
         # Scatter plot
         print(f"{color_teal}Generating the scatter plot...{color_reset}")
@@ -212,7 +210,7 @@ def generate_graphs_and_table(data, output_image_file_base, lower_height, upper_
         ax.legend(handles=legend_patches, loc='upper right', fontsize=20)
         plt.tight_layout()
         plt.savefig(f"{output_image_file_base}_scatter_plot.png")
-        print(f"{color_teal}Scatter plot generated successfully.{color_reset}")
+        print(f"{color_light_green}Scatter plot generated successfully.{color_reset}")
 
         # Histogram plot
         print(f"{color_teal}Generating the histogram plot...{color_reset}")
@@ -226,7 +224,7 @@ def generate_graphs_and_table(data, output_image_file_base, lower_height, upper_
         ax.tick_params(axis='y', labelsize=20)
         plt.tight_layout()
         plt.savefig(f"{output_image_file_base}_histogram.png")
-        print(f"{color_teal}Histogram plot generated successfully.{color_reset}")
+        print(f"{color_light_green}Histogram plot generated successfully.{color_reset}")
     else:
         print("No data to plot.")
 
