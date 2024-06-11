@@ -6,7 +6,7 @@
 # @Twitter - https://twitter.com/ErialosOfAstora
 # @Date - 2024-06-06 15:19:00 UTC
 # @Last_Modified_By - Jonathan - Erialos
-# @Last_Modified_Time - 2024-06-11 17:30:00 UTC
+# @Last_Modified_Time - 2024-06-11 00:00:00 UTC
 # @Description - A tool to analyze block sizes in a blockchain.
 
 import requests
@@ -32,8 +32,8 @@ color_red = "\033[38;5;9m"
 color_magenta = "\033[38;5;13m"
 color_light_blue = "\033[38;5;123m"
 color_dark_grey = "\033[38;5;245m"
-color_light_green = "\033[38;5;121m"  # Light Green
-color_teal = "\033[38;5;74m"  # Light Blue
+color_teal = "\033[38;5;74m"
+color_light_green = "\033[38;5;121m"
 color_reset = "\033[0m"
 
 # Global variable to manage executor shutdown
@@ -107,12 +107,15 @@ def parse_timestamp(timestamp):
     except ValueError:
         raise ValueError(f"time data '{timestamp}' does not match any known format")
 
-def process_block(height, endpoint_type, endpoint_url):
+def process_block(height, endpoint_type, endpoint_urls):
     if shutdown_event.is_set():
         return None
 
-    block_info = fetch_block_info(endpoint_type, endpoint_url, height)
-    if block_info is None:
+    for url in endpoint_urls:
+        block_info = fetch_block_info(endpoint_type, url, height)
+        if block_info is not None:
+            break
+    else:
         return None
 
     block_size = len(json.dumps(block_info))
@@ -137,22 +140,20 @@ def generate_graphs_and_table(data, output_image_file_base, lower_height, upper_
     red_blocks = data["3MB_to_5MB"]
     magenta_blocks = data["greater_than_5MB"]
     block_data = data["block_data"]
-    total_blocks = len(block_data)
 
     print(f"{color_light_green}\nBlock sizes have been written to {output_image_file_base}.json{color_reset}")
     print(f"{color_teal}Script completed in: {timedelta(seconds=int(data['total_duration']))}{color_reset}")
-    print(f"{color_teal}Estimated Script Execution Time: {timedelta(seconds=int(data['estimated_time']))}{color_reset}")
-    print(f"{color_teal}Actual Script Execution Time: {timedelta(seconds=int(data['total_duration']))}{color_reset}")
+    print(f"{color_light_green}Estimated Script Execution Time: {timedelta(seconds=int(data['estimated_time']))}{color_reset}")
 
     print(f"{color_teal}\nNumber of blocks in each group for block heights {lower_height} to {upper_height}:{color_reset}")
 
-    headers = [f"{color_light_blue}Block Size Range{color_reset}", f"{color_light_blue}Count{color_reset}", f"{color_light_blue}Percentage{color_reset}", f"{color_light_blue}Average Size (MB){color_reset}", f"{color_light_blue}Min Size (MB){color_reset}", f"{color_light_blue}Max Size (MB){color_reset}"]
+    headers = [f"{color_teal}Block Size Range{color_reset}", f"{color_teal}Count{color_reset}", f"{color_teal}Percentage{color_reset}", f"{color_teal}Average Size (MB){color_reset}", f"{color_teal}Min Size (MB){color_reset}", f"{color_teal}Max Size (MB){color_reset}"]
     table = [
         [f"{color_green}Less than 1MB{color_reset}", f"{color_green}{len(green_blocks)}{color_reset}", f"{color_green}{data['stats']['less_than_1MB']['percentage']:.2f}%{color_reset}", f"{color_green}{calculate_avg([b['size'] for b in green_blocks]):.2f}{color_reset}", f"{color_green}{min([b['size'] for b in green_blocks], default=0):.2f}{color_reset}", f"{color_green}{max([b['size'] for b in green_blocks], default=0):.2f}{color_reset}"],
-        [f"{color_yellow}1MB to 2MB{color_reset}", f"{color_yellow}{len(yellow_blocks)}{color_reset}", f"{color_yellow}{data['stats']['1MB_to_2MB']['percentage']:.2f}%{color_reset}", f"{color_yellow}{calculate_avg([b['size'] for b in yellow_blocks])::.2f}{color_reset}", f"{color_yellow}{min([b['size'] for b in yellow_blocks], default=0):.2f}{color_reset}", f"{color_yellow}{max([b['size'] for b in yellow_blocks], default=0)::.2f}{color_reset}"],
+        [f"{color_yellow}1MB to 2MB{color_reset}", f"{color_yellow}{len(yellow_blocks)}{color_reset}", f"{color_yellow}{data['stats']['1MB_to_2MB']['percentage']:.2f}%{color_reset}", f"{color_yellow}{calculate_avg([b['size'] for b in yellow_blocks])::.2f}{color_reset}", f"{color_yellow}{min([b['size'] for b in yellow_blocks], default=0):.2f}{color_reset}", f"{color_yellow}{max([b['size'] for b in yellow_blocks], default=0):.2f}{color_reset}"],
         [f"{color_orange}2MB to 3MB{color_reset}", f"{color_orange}{len(orange_blocks)}{color_reset}", f"{color_orange}{data['stats']['2MB_to_3MB']['percentage']:.2f}%{color_reset}", f"{color_orange}{calculate_avg([b['size'] for b in orange_blocks]):.2f}{color_reset}", f"{color_orange}{min([b['size'] for b in orange_blocks], default=0):.2f}{color_reset}", f"{color_orange}{max([b['size'] for b in orange_blocks], default=0):.2f}{color_reset}"],
-        [f"{color_red}3MB to 5MB{color_reset}", f"{color_red}{len(red_blocks)}{color_reset}", f"{color_red}{data['stats']['3MB_to_5MB']['percentage']:.2f}%{color_reset}", f"{color_red}{calculate_avg([b['size'] for b in red_blocks]):.2f}{color_reset}", f"{color_red}{min([b['size'] for b in red_blocks], default=0):.2f}{color_reset}", f"{color_red}{max([b['size'] for b in red_blocks], default=0):.2f}{color_reset}"],
-        [f"{color_magenta}Greater than 5MB{color_reset}", f"{color_magenta}{len(magenta_blocks)}{color_reset}", f"{color_magenta}{data['stats']['greater_than_5MB']['percentage']:.2f}%{color_reset}", f"{color_magenta}{calculate_avg([b['size'] for b in magenta_blocks]):.2f}{color_reset}", f"{color_magenta}{min([b['size'] for b in magenta_blocks], default=0):.2f}{color_reset}", f"{color_magenta}{max([b['size'] for b in magenta_blocks], default=0):.2f}{color_reset}"]
+        [f"{color_red}3MB to 5MB{color_reset}", f"{color_red}{len(red_blocks)}{color_reset}", f"{color_red}{data['stats']['3MB_to_5MB']['percentage']:.2f}%{color_reset}", f"{color_red}{calculate_avg([b['size'] for b in red_blocks])::.2f}{color_reset}", f"{color_red}{min([b['size'] for b in red_blocks], default=0):.2f}{color_reset}", f"{color_red}{max([b['size'] for b in red_blocks], default=0):.2f}{color_reset}"],
+        [f"{color_magenta}Greater than 5MB{color_reset}", f"{color_magenta}{len(magenta_blocks)}{color_reset}", f"{color_magenta}{data['stats']['greater_than_5MB']['percentage']:.2f}%{color_reset}", f"{color_magenta}{calculate_avg([b['size'] for b in magenta_blocks])::.2f}{color_reset}", f"{color_magenta}{min([b['size'] for b in magenta_blocks], default=0):.2f}{color_reset}", f"{color_magenta}{max([b['size'] for b in magenta_blocks], default=0):.2f}{color_reset}"]
     ]
 
     table_str = tabulate(table, headers=headers, tablefmt="pretty")
@@ -234,18 +235,19 @@ def main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls, 
     if json_file:
         with open(json_file, 'r') as f:
             data = json.load(f)
-            lower_height = data["lower_height"]
-            upper_height = data["upper_height"]
-            output_image_file_base = f"block_sizes_{lower_height}_to_{upper_height}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-            generate_graphs_and_table(data, output_image_file_base, lower_height, upper_height)
+
+        lower_height = data.get("lower_height", lower_height)
+        upper_height = data.get("upper_height", upper_height)
+        output_image_file_base = f"block_sizes_{lower_height}_to_{upper_height}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
+        generate_graphs_and_table(data, output_image_file_base, lower_height, upper_height)
         return
 
-    print(f"{color_teal}\nChecking the specified starting block height...{color_reset}")
+    print(f"{color_light_blue}\nChecking the specified starting block height...{color_reset}")
 
     # Health check
     retries = 3
     for attempt in range(retries):
-        if any(check_endpoint(endpoint_type, url) for url in endpoint_urls):
+        if check_endpoint(endpoint_type, endpoint_urls[0]):
             break
         else:
             print(f"{color_yellow}RPC endpoint unreachable. Retrying {attempt + 1}/{retries}...{color_reset}")
@@ -254,28 +256,20 @@ def main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls, 
         print(f"{color_red}RPC endpoint unreachable after multiple attempts. Exiting.{color_reset}")
         sys.exit(1)
 
-    block_info = None
-    for url in endpoint_urls:
-        block_info = fetch_block_info(endpoint_type, url, lower_height)
-        if block_info is not None:
-            break
-
+    block_info = fetch_block_info(endpoint_type, endpoint_urls[0], lower_height)
     if block_info is None:
         print(f"{color_yellow}Block height {lower_height} does not exist. Finding the earliest available block height...{color_reset}")
-        for url in endpoint_urls:
-            lower_height = find_lowest_height(endpoint_type, url)
-            if lower_height is not None:
-                break
+        lower_height = find_lowest_height(endpoint_type, endpoint_urls[0])
         if lower_height is None:
             print(f"{color_red}Failed to determine the earliest block height. Exiting.{color_reset}")
             sys.exit(1)
-        print(f"{color_teal}Using earliest available block height: {lower_height}{color_reset}")
+        print(f"{color_light_blue}Using earliest available block height: {lower_height}{color_reset}")
 
     if lower_height > upper_height:
         print(f"{color_red}The specified lower height {lower_height} is greater than the specified upper height {upper_height}. Exiting.{color_reset}")
         sys.exit(1)
 
-    print(f"{color_teal}\nFetching block information. This may take a while for large ranges. Please wait...{color_reset}")
+    print(f"{color_light_blue}\nFetching block information. This may take a while for large ranges. Please wait...{color_reset}")
 
     start_time = datetime.utcnow()
     current_date = start_time.strftime("%B %A %d, %Y %H:%M:%S UTC")
@@ -291,6 +285,7 @@ def main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls, 
 
     total_blocks = upper_height - lower_height + 1
     start_script_time = time.time()
+    estimated_time = None
 
     print(f"{color_dark_grey}\n{'='*40}\n{color_reset}")
 
@@ -298,7 +293,6 @@ def main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls, 
     future_to_height = {executor.submit(process_block, height, endpoint_type, endpoint_urls): height for height in range(lower_height, upper_height + 1)}
 
     completed = 0
-    estimated_time = None
     try:
         for future in as_completed(future_to_height):
             if shutdown_event.is_set():
@@ -331,8 +325,11 @@ def main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls, 
             elapsed_time = time.time() - start_script_time
             estimated_total_time = elapsed_time / completed * total_blocks
             time_left = estimated_total_time - elapsed_time
-            estimated_time = estimated_time or estimated_total_time  # Set estimated_time if it's not already set
-            print(f"{color_teal}Progress: {progress:.2f}% ({completed}/{total_blocks}) - Estimated time left: {timedelta(seconds=int(time_left))}", end='\r')
+
+            if completed > total_blocks * 0.1 and estimated_time is None:  # Set estimated time after 10% completion
+                estimated_time = estimated_total_time
+
+            print(f"{color_light_blue}Progress: {progress:.2f}% ({completed}/{total_blocks}) - Estimated time left: {timedelta(seconds=int(time_left))}", end='\r')
     except KeyboardInterrupt:
         shutdown_event.set()
         if executor:
@@ -342,11 +339,9 @@ def main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls, 
 
     executor.shutdown(wait=True)
 
-    total_duration = time.time() - start_script_time
-
     result = {
         "connection_type": endpoint_type,
-        "endpoint": endpoint_urls,
+        "endpoint": endpoint_urls[0],
         "run_time": current_date,
         "less_than_1MB": green_blocks,
         "1MB_to_2MB": yellow_blocks,
@@ -354,6 +349,10 @@ def main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls, 
         "3MB_to_5MB": red_blocks,
         "greater_than_5MB": magenta_blocks,
         "block_data": block_data,
+        "total_duration": time.time() - start_script_time,
+        "estimated_time": estimated_time,
+        "lower_height": lower_height,
+        "upper_height": upper_height,
         "stats": {
             "less_than_1MB": {
                 "count": len(green_blocks),
@@ -390,11 +389,7 @@ def main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls, 
                 "max_size_mb": max([b["size"] for b in magenta_blocks], default=0),
                 "percentage": (len(magenta_blocks) / total_blocks) * 100
             }
-        },
-        "total_duration": total_duration,
-        "estimated_time": estimated_time,
-        "lower_height": lower_height,
-        "upper_height": upper_height
+        }
     }
 
     with open(output_file, 'w') as f:
@@ -403,8 +398,8 @@ def main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls, 
     generate_graphs_and_table(result, output_image_file_base, lower_height, upper_height)
 
 if __name__ == "__main__":
-    if len(sys.argv) not in (6, 7):
-        print(f"{color_red}Usage: python blockbusteranalyzer.py <num_workers> <lower_height> <upper_height> <endpoint_type> <endpoint_urls_comma_separated> [<json_file>]{color_reset}")
+    if len(sys.argv) < 6:
+        print(f"{color_red}Usage: python blockbusteranalyzer.py <num_workers> <lower_height> <upper_height> <endpoint_type> <endpoint_urls_comma_separated> [json_file]{color_reset}")
         sys.exit(1)
 
     num_workers = int(sys.argv[1])
@@ -413,6 +408,8 @@ if __name__ == "__main__":
     endpoint_type = sys.argv[4]
     endpoint_urls = sys.argv[5].split(',')
 
-    json_file = sys.argv[6] if len(sys.argv) == 7 else None
+    json_file = None
+    if len(sys.argv) == 7:
+        json_file = sys.argv[6]
 
     main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls, json_file)
