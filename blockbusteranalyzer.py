@@ -6,8 +6,8 @@
 # @Twitter - https://twitter.com/ErialosOfAstora
 # @Date - 2024-06-06 15:19:00 UTC
 # @Last_Modified_By - Jonathan - Erialos
-# @Last_Modified_Time - 2024-06-12 03:00:00 UTC
-# @Version - 1.0.4
+# @Last_Modified_Time - 2024-06-13 10:00:00 UTC
+# @Version - 1.0.5
 # @Description - A tool to analyze block sizes in a blockchain.
 
 import requests
@@ -29,7 +29,7 @@ import signal
 import threading
 import matplotlib.dates as mdates
 import pandas as pd
-import plotly.express as px
+import seaborn as sns
 
 # ANSI escape sequences for 256 colors (Bash colors)
 bash_color_green = "\033[38;5;10m"  # Green
@@ -43,7 +43,7 @@ bash_color_light_green = "\033[38;5;121m"  # Light Green
 bash_color_teal = "\033[38;5;74m"  # Teal
 bash_color_reset = "\033[0m"  # Reset
 
-# Python color names for Matplotlib and Plotly charts
+# Python color names for Matplotlib
 py_color_green = "green"
 py_color_yellow = "yellow"
 py_color_orange = "orange"
@@ -79,15 +79,8 @@ def fetch_block_info(endpoint_type, endpoint_url, height):
             response = session.get(encoded_url, timeout=10)
         else:
             response = requests.get(f"{endpoint_url}/block?height={height}", timeout=10)
-        response.raise_for_status()
-        block_info = response.json()
-        block_size = len(json.dumps(block_info))
-        block_time = block_info['result']['block']['header']['time']
-        return {
-            "height": height,
-            "size": block_size / 1048576,  # Base 2: 1MB = 1,048,576 bytes
-            "time": block_time
-        }
+            response.raise_for_status()
+        return response.json()
     except requests.RequestException as e:
         print(f"Error fetching data for block {height}: {e}")
         return None
@@ -100,7 +93,7 @@ def find_lowest_height(endpoint_type, endpoint_url):
             response = session.get(encoded_url, timeout=10)
         else:
             response = requests.get(f"{endpoint_url}/block?height=1", timeout=10)
-        response.raise_for_status()
+            response.raise_for_status()
         block_info = response.json()
         if 'error' in block_info and 'data' in block_info['error']:
             data_message = block_info['error']['data']
@@ -142,8 +135,10 @@ def process_block(height, endpoint_type, endpoint_url):
     if block_info is None:
         return None
 
-    block_size_mb = block_info["size"]
-    block_time = parse_timestamp(block_info['time'])
+    block_size = len(json.dumps(block_info))
+    block_size_mb = block_size / 1048576  # Base 2: 1MB = 1,048,576 bytes
+
+    block_time = parse_timestamp(block_info['result']['block']['header']['time'])
     return (height, block_size_mb, block_time)
 
 def signal_handler(sig, frame):
@@ -192,15 +187,33 @@ def generate_graphs_and_table(data, output_image_file_base, lower_height, upper_
         [f"{bash_color_red}3MB to 5MB{bash_color_reset}", f"{bash_color_red}{len(categories['3MB_to_5MB'])}{bash_color_reset}", f"{bash_color_red}{len(categories['3MB_to_5MB']) / total_blocks * 100:.2f}%{bash_color_reset}", f"{bash_color_red}{calculate_avg([b['size'] for b in categories['3MB_to_5MB']]):.2f}{bash_color_reset}", f"{bash_color_red}{min([b['size'] for b in categories['3MB_to_5MB']], default=0):.2f}{bash_color_reset}", f"{bash_color_red}{max([b['size'] for b in categories['3MB_to_5MB']], default=0):.2f}{bash_color_reset}"],
         [f"{bash_color_magenta}Greater than 5MB{bash_color_reset}", f"{bash_color_magenta}{len(categories['greater_than_5MB'])}{bash_color_reset}", f"{bash_color_magenta}{len(categories['greater_than_5MB']) / total_blocks * 100:.2f}%{bash_color_reset}", f"{bash_color_magenta}{calculate_avg([b['size'] for b in categories['greater_than_5MB']]):.2f}{bash_color_reset}", f"{bash_color_magenta}{min([b['size'] for b in categories['greater_than_5MB']], default=0):.2f}{bash_color_reset}", f"{bash_color_magenta}{max([b['size'] for b in categories['greater_than_5MB']], default=0):.2f}{bash_color_reset}"]
     ]
-    print_table(headers, table)
 
-    # Scatter plot
-    print(f"{bash_color_teal}Generating the scatter plot...{bash_color_reset}")
-    fig, ax = plt.subplots(figsize=(38, 20))
+    table_str = tabulate(table, headers=headers, tablefmt="pretty")
+    table_str = table_str.replace("+", f"{bash_color_dark_grey}+{bash_color_reset}").replace("-", f"{bash_color_dark_grey}-{bash_color_reset}").replace("|", f"{bash_color_dark_grey}|{bash_color_reset}")
+    print(table_str)
+
     times = [datetime.fromisoformat(b['time']) for b in block_data]
     sizes = [b['size'] for b in block_data]
-    colors = [py_color_green if size < 1 else py_color_yellow if size < 2 else py_color_orange if size < 3 else py_color_red if size < 5 else py_color_magenta for size in sizes]
+    colors = [
+        py_color_green if size < 1 else
+        py_color_yellow if size < 2 else
+        py_color_orange if size < 3 else
+        py_color_red if size < 5 else
+        py_color_magenta
+        for size in sizes
+    ]
 
+    legend_patches = [
+        mpatches.Patch(color='green', label='< 1MB'),
+        mpatches.Patch(color='yellow', label='1MB to 2MB'),
+        mpatches.Patch(color='orange', label='2MB to 3MB'),
+        mpatches.Patch(color='red', label='3MB to 5MB'),
+        mpatches.Patch(color='magenta', label='> 5MB')
+    ]
+
+    # Scatter plot
+    print(f"{bash_color_light_blue}Generating the scatter plot...{bash_color_reset}")
+    fig, ax = plt.subplots(figsize=(38, 20))
     ax.scatter(times, sizes, color=colors)
     ax.set_title(f'Block Size Over Time (Scatter Plot)\nBlock Heights {lower_height} to {upper_height}', fontsize=28)
     ax.set_xlabel('Time', fontsize=24)
@@ -210,66 +223,87 @@ def generate_graphs_and_table(data, output_image_file_base, lower_height, upper_
     ax.xaxis.set_minor_locator(mdates.DayLocator(interval=1))
     ax.tick_params(axis='x', labelrotation=45, labelsize=20)
     ax.tick_params(axis='y', labelsize=20)
-    legend_patches = [
-        plt.Line2D([0], [0], marker='o', color='w', label='Less than 1MB', markerfacecolor=py_color_green, markersize=10),
-        plt.Line2D([0], [0], marker='o', color='w', label='1MB to 2MB', markerfacecolor=py_color_yellow, markersize=10),
-        plt.Line2D([0], [0], marker='o', color='w', label='2MB to 3MB', markerfacecolor=py_color_orange, markersize=10),
-        plt.Line2D([0], [0], marker='o', color='w', label='3MB to 5MB', markerfacecolor=py_color_red, markersize=10),
-        plt.Line2D([0], [0], marker='o', color='w', label='Greater than 5MB', markerfacecolor=py_color_magenta, markersize=10)
-    ]
     ax.legend(handles=legend_patches, loc='upper right', fontsize=20)
     plt.tight_layout()
     plt.savefig(f"{output_image_file_base}_scatter_plot.png")
     print(f"{bash_color_light_green}Scatter plot generated successfully.{bash_color_reset}")
 
-    # Histogram plot
-    print(f"{bash_color_teal}Generating the histogram plot...{bash_color_reset}")
+    # Enhanced Scatter plot
+    print(f"{bash_color_light_blue}Generating the enhanced scatter plot...{bash_color_reset}")
     fig, ax = plt.subplots(figsize=(38, 20))
-    ax.hist(sizes, bins=50, color=py_color_blue, edgecolor='black')
-    ax.set_title(f'Block Size Distribution (Histogram)\nBlock Heights {lower_height} to {upper_height}', fontsize=28)
-    ax.set_xlabel('Block Size (MB)', fontsize=24)
-    ax.set_ylabel('Frequency', fontsize=24)
-    ax.tick_params(axis='x', labelsize=20)
+    ax.scatter(times, sizes, color=colors, alpha=0.6, edgecolors='w', linewidth=0.5)
+    ax.set_title(f'Enhanced Block Size Over Time (Scatter Plot)\nBlock Heights {lower_height} to {upper_height}', fontsize=28)
+    ax.set_xlabel('Time', fontsize=24)
+    ax.set_ylabel('Block Size (MB)', fontsize=24)
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+    ax.xaxis.set_major_locator(mdates.DayLocator(interval=30))
+    ax.xaxis.set_minor_locator(mdates.DayLocator(interval=1))
+    ax.tick_params(axis='x', labelrotation=45, labelsize=20)
+    ax.tick_params(axis='y', labelsize=20)
+    ax.legend(handles=legend_patches, loc='upper right', fontsize=20)
+    plt.tight_layout()
+    plt.savefig(f"{output_image_file_base}_enhanced_scatter_plot.png")
+    print(f"{bash_color_light_green}Enhanced scatter plot generated successfully.{bash_color_reset}")
+
+    # Density scatter plot
+    print(f"{bash_color_light_blue}Generating the density scatter plot...{bash_color_reset}")
+    fig, ax = plt.subplots(figsize=(38, 20))
+    sns.kdeplot(x=times, y=sizes, fill=True, ax=ax)
+    ax.set_title(f'Block Size Density Over Time (Density Scatter Plot)\nBlock Heights {lower_height} to {upper_height}', fontsize=28)
+    ax.set_xlabel('Time', fontsize=24)
+    ax.set_ylabel('Block Size (MB)', fontsize=24)
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+    ax.xaxis.set_major_locator(mdates.DayLocator(interval=30))
+    ax.xaxis.set_minor_locator(mdates.DayLocator(interval=1))
+    ax.tick_params(axis='x', labelrotation=45, labelsize=20)
     ax.tick_params(axis='y', labelsize=20)
     plt.tight_layout()
-    plt.savefig(f"{output_image_file_base}_histogram.png")
-    print(f"{bash_color_light_green}Histogram plot generated successfully.{bash_color_reset}")
+    plt.savefig(f"{output_image_file_base}_density_scatter_plot.png")
+    print(f"{bash_color_light_green}Density scatter plot generated successfully.{bash_color_reset}")
 
-    # Interactive scatter plot
-    print(f"{bash_color_teal}Generating the interactive scatter plot...{bash_color_reset}")
-    df = pd.DataFrame({
-        "Time": times,
-        "Block Size (MB)": sizes,
-        "Block Category": [
-            '< 1MB' if size < 1 else
-            '1MB to 2MB' if size < 2 else
-            '2MB to 3MB' if size < 3 else
-            '3MB to 5MB' if size < 5 else
-            '> 5MB'
-            for size in sizes
-        ]
-    })
-    fig = px.scatter(df, x="Time", y="Block Size (MB)", color="Block Category",
-                     title=f'Block Size Over Time (Interactive Scatter Plot)\nBlock Heights {lower_height} to {upper_height}',
-                     labels={"Time": "Time", "Block Size (MB)": "Block Size (MB)"},
-                     color_discrete_map={
-                         "< 1MB": py_color_green,
-                         "1MB to 2MB": py_color_yellow,
-                         "2MB to 3MB": py_color_orange,
-                         "3MB to 5MB": py_color_red,
-                         "> 5MB": py_color_magenta
-                     })
-    fig.write_html(f"{output_image_file_base}_interactive_scatter_plot.html")
-    print(f"{bash_color_light_green}Interactive scatter plot generated successfully.{bash_color_reset}")
+    # Time Series Line chart
+    print(f"{bash_color_light_blue}Generating the time series line chart...{bash_color_reset}")
+    fig, ax = plt.subplots(figsize=(38, 20))
+    ax.plot(times, sizes, color=py_color_blue, linestyle='-', linewidth=2)
+    ax.set_title(f'Block Size Over Time (Time Series Line Chart)\nBlock Heights {lower_height} to {upper_height}', fontsize=28)
+    ax.set_xlabel('Time', fontsize=24)
+    ax.set_ylabel('Block Size (MB)', fontsize=24)
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+    ax.xaxis.set_major_locator(mdates.DayLocator(interval=30))
+    ax.xaxis.set_minor_locator(mdates.DayLocator(interval=1))
+    ax.tick_params(axis='x', labelrotation=45, labelsize=20)
+    ax.tick_params(axis='y', labelsize=20)
+    plt.tight_layout()
+    plt.savefig(f"{output_image_file_base}_time_series_line_chart.png")
+    print(f"{bash_color_light_green}Time series line chart generated successfully.{bash_color_reset}")
 
-def print_table(headers, rows):
-    col_widths = [max(len(str(cell)) for cell in col) for col in zip(headers, *rows)]
-    separator = f"{bash_color_dark_grey}|{bash_color_reset}".join(['-' * (width + 2) for width in col_widths])
-    print(f"{'|'.join(f' {header.ljust(width)} ' for header, width in zip(headers, col_widths))}")
-    print(f"{'|'.join(f' {header.ljust(width)} ' for header, width in zip(headers, col_widths))}")
-    print(separator)
-    for row in rows:
-        print(f"{'|'.join(f' {cell.ljust(width)} ' for cell, width in zip(row, col_widths))}")
+    # Box plot
+    print(f"{bash_color_light_blue}Generating the box plot...{bash_color_reset}")
+    fig, ax = plt.subplots(figsize=(38, 20))
+    sns.boxplot(x=times, y=sizes, ax=ax)
+    ax.set_title(f'Block Size Distribution Over Time (Box Plot)\nBlock Heights {lower_height} to {upper_height}', fontsize=28)
+    ax.set_xlabel('Time', fontsize=24)
+    ax.set_ylabel('Block Size (MB)', fontsize=24)
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+    ax.xaxis.set_major_locator(mdates.DayLocator(interval=30))
+    ax.xaxis.set_minor_locator(mdates.DayLocator(interval=1))
+    ax.tick_params(axis='x', labelrotation=45, labelsize=20)
+    ax.tick_params(axis='y', labelsize=20)
+    plt.tight_layout()
+    plt.savefig(f"{output_image_file_base}_box_plot.png")
+    print(f"{bash_color_light_green}Box plot generated successfully.{bash_color_reset}")
+
+    # Heatmap
+    print(f"{bash_color_light_blue}Generating the heatmap...{bash_color_reset}")
+    fig, ax = plt.subplots(figsize=(38, 20))
+    data_matrix = np.array([sizes]).T
+    sns.heatmap(data_matrix, ax=ax, cmap="YlGnBu")
+    ax.set_title(f'Block Size Heatmap\nBlock Heights {lower_height} to {upper_height}', fontsize=28)
+    ax.set_xlabel('Block Number', fontsize=24)
+    ax.set_ylabel('Block Size (MB)', fontsize=24)
+    plt.tight_layout()
+    plt.savefig(f"{output_image_file_base}_heatmap.png")
+    print(f"{bash_color_light_green}Heatmap generated successfully.{bash_color_reset}")
 
 def main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls, json_file=None):
     global executor
@@ -423,21 +457,22 @@ def main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls, 
                 "max_size_mb": max([b["size"] for b in categories["greater_than_5MB"]], default=0),
                 "percentage": len(categories["greater_than_5MB"]) / total_blocks * 100
             }
-        },
-        "start_script_time": start_script_time,
-        "total_duration": time.time() - start_script_time,
-        "lower_height": lower_height,
-        "upper_height": upper_height
+        }
     }
 
     with open(output_file, 'w') as f:
         json.dump(result, f, indent=2)
 
+    end_script_time = time.time()
+    total_duration = end_script_time - start_script_time
+    print(f"{bash_color_green}\nBlock sizes have been written to {output_file}{bash_color_reset}")
+    print(f"{bash_color_light_blue}Script completed in: {timedelta(seconds=int(total_duration))}{bash_color_reset}")
+
     generate_graphs_and_table(result, output_image_file_base, lower_height, upper_height)
 
 if __name__ == "__main__":
-    if len(sys.argv) not in {6, 7}:
-        print(f"{bash_color_red}Usage: python blockbusteranalyzer.py <num_workers> <lower_height> <upper_height> <endpoint_type> <endpoint_urls> [json_file]{bash_color_reset}")
+    if len(sys.argv) != 6:
+        print(f"{bash_color_red}Usage: python blockbusteranalyzer.py <num_workers> <lower_height> <upper_height> <endpoint_type> <endpoint_urls>{bash_color_reset}")
         sys.exit(1)
 
     num_workers = int(sys.argv[1])
@@ -446,6 +481,4 @@ if __name__ == "__main__":
     endpoint_type = sys.argv[4]
     endpoint_urls = sys.argv[5]
 
-    json_file = sys.argv[6] if len(sys.argv) == 7 else None
-
-    main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls, json_file)
+    main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls)
