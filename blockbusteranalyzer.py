@@ -30,6 +30,7 @@ import threading
 import matplotlib.dates as mdates
 import pandas as pd
 import seaborn as sns
+import multiprocessing
 
 # ANSI escape sequences for 256 colors (Bash colors)
 bash_color_green = "\033[38;5;10m"  # Green
@@ -58,6 +59,7 @@ py_color_blue = "blue"
 # Global variable to manage executor shutdown
 executor = None
 shutdown_event = threading.Event()
+cpu_count = multiprocessing.cpu_count()
 
 def check_endpoint(endpoint_type, endpoint_url):
     try:
@@ -305,16 +307,19 @@ def generate_graphs_and_table(data, output_image_file_base, lower_height, upper_
     plt.savefig(f"{output_image_file_base}_heatmap.png")
     print(f"{bash_color_light_green}Heatmap generated successfully.{bash_color_reset}")
 
-def main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls, json_file=None, json_workers=None):
+def main(json_workers, fetch_workers, lower_height, upper_height, endpoint_type, endpoint_urls, json_file=None):
     global executor
     endpoint_urls = endpoint_urls.split(',')
     endpoint = endpoint_urls[0]  # Use the first endpoint for now
 
-    if json_workers is None:
-        json_workers = min(os.cpu_count(), 50)
-    elif json_workers > os.cpu_count():
-        json_workers = os.cpu_count()
-        print(f"{bash_color_yellow}Warning: JSON workers exceed CPU count. Reduced to {json_workers}.{bash_color_reset}")
+    if json_workers <= 0:
+        json_workers = max(1, cpu_count // 2)
+    if fetch_workers <= 0:
+        fetch_workers = max(1, cpu_count // 2)
+
+    if json_workers > cpu_count:
+        json_workers = cpu_count
+        print(f"{bash_color_yellow}json_workers set to {json_workers} due to CPU count limitation.{bash_color_reset}")
 
     if json_file:
         with open(json_file, 'r') as f:
@@ -380,7 +385,7 @@ def main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls, 
 
     print(f"{bash_color_dark_grey}\n{'='*40}\n{bash_color_reset}")
 
-    executor = ThreadPoolExecutor(max_workers=num_workers)
+    executor = ThreadPoolExecutor(max_workers=fetch_workers)
     future_to_height = {executor.submit(process_block, height, endpoint_type, endpoint_urls): height for height in range(lower_height, upper_height + 1)}
 
     completed = 0
@@ -452,7 +457,7 @@ def main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls, 
             "3MB_to_5MB": {
                 "count": len(categories["3MB_to_5MB"]),
                 "avg_size_mb": calculate_avg([b["size"] for b in categories["3MB_to_5MB"]]),
-                "min_size_mb": min([b["size"] for b in categories["3MB_to_5MB"]), default=0),
+                "min_size_mb": min([b["size"] for b in categories["3MB_to_5MB"]], default=0),
                 "max_size_mb": max([b["size"] for b in categories["3MB_to_5MB"]], default=0),
                 "percentage": len(categories["3MB_to_5MB"]) / total_blocks * 100
             },
@@ -463,7 +468,11 @@ def main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls, 
                 "max_size_mb": max([b["size"] for b in categories["greater_than_5MB"]], default=0),
                 "percentage": len(categories["greater_than_5MB"]) / total_blocks * 100
             }
-        }
+        },
+        "start_script_time": start_script_time,
+        "total_duration": time.time() - start_script_time,
+        "lower_height": lower_height,
+        "upper_height": upper_height
     }
 
     with open(output_file, 'w') as f:
@@ -477,16 +486,17 @@ def main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls, 
     generate_graphs_and_table(result, output_image_file_base, lower_height, upper_height)
 
 if __name__ == "__main__":
-    if len(sys.argv) not in {6, 8}:
-        print(f"{bash_color_red}Usage: python blockbusteranalyzer.py <num_workers> <lower_height> <upper_height> <endpoint_type> <endpoint_urls> [json_file] [json_workers]{bash_color_reset}")
+    if len(sys.argv) not in {6, 7, 8}:
+        print(f"{bash_color_red}Usage: python blockbusteranalyzer.py <json_workers> <fetch_workers> <lower_height> <upper_height> <endpoint_type> <endpoint_urls> [json_file]{bash_color_reset}")
         sys.exit(1)
 
-    num_workers = int(sys.argv[1])
-    lower_height = int(sys.argv[2])
-    upper_height = int(sys.argv[3])
-    endpoint_type = sys.argv[4]
-    endpoint_urls = sys.argv[5]
-    json_file = sys.argv[6] if len(sys.argv) > 6 else None
-    json_workers = int(sys.argv[7]) if len(sys.argv) > 7 else None
+    json_workers = int(sys.argv[1])
+    fetch_workers = int(sys.argv[2])
+    lower_height = int(sys.argv[3])
+    upper_height = int(sys.argv[4])
+    endpoint_type = sys.argv[5]
+    endpoint_urls = sys.argv[6]
 
-    main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls, json_file, json_workers)
+    json_file = sys.argv[7] if len(sys.argv) > 7 else None
+
+    main(json_workers, fetch_workers, lower_height, upper_height, endpoint_type, endpoint_urls, json_file)
