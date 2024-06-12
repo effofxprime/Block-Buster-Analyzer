@@ -6,8 +6,8 @@
 # @Twitter - https://twitter.com/ErialosOfAstora
 # @Date - 2024-06-06 15:19:00 UTC
 # @Last_Modified_By - Jonathan - Erialos
-# @Last_Modified_Time - 2024-06-13 10:00:00 UTC
-# @Version - 1.0.5
+# @Last_Modified_Time - 2024-06-13 14:00:00 UTC
+# @Version - 1.0.6
 # @Description - A tool to analyze block sizes in a blockchain.
 
 import requests
@@ -471,8 +471,8 @@ def main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls, 
     generate_graphs_and_table(result, output_image_file_base, lower_height, upper_height)
 
 if __name__ == "__main__":
-    if len(sys.argv) != 6:
-        print(f"{bash_color_red}Usage: python blockbusteranalyzer.py <num_workers> <lower_height> <upper_height> <endpoint_type> <endpoint_urls>{bash_color_reset}")
+    if len(sys.argv) not in {6, 7}:
+        print(f"{bash_color_red}Usage: python blockbusteranalyzer.py <num_workers> <lower_height> <upper_height> <endpoint_type> <endpoint_urls> [json_file]{bash_color_reset}")
         sys.exit(1)
 
     num_workers = int(sys.argv[1])
@@ -481,4 +481,6 @@ if __name__ == "__main__":
     endpoint_type = sys.argv[4]
     endpoint_urls = sys.argv[5]
 
-    main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls)
+    json_file = sys.argv[6] if len(sys.argv) == 7 else None
+
+    main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls, json_file)
