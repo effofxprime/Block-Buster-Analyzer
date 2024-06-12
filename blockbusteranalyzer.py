@@ -556,14 +556,14 @@ def main(json_workers, fetch_workers, lower_height, upper_height, endpoint_type,
             "avg_size_mb": calculate_avg([b["size"] for b in categories["3MB_to_5MB"]]),
             "min_size_mb": min([b["size"] for b in categories["3MB_to_5MB"]], default=0),
             "max_size_mb": max([b["size"] for b in categories["3MB_to_5MB"]], default=0),
-            "percentage": len(categories["3MB_to_5MB"]) / total blocks * 100
+            "percentage": len(categories["3MB_to_5MB"]) / total_blocks * 100
         },
         "greater_than 5MB": {
             "count": len(categories["greater_than_5MB"]),
             "avg_size_mb": calculate_avg([b["size"] for b in categories["greater_than_5MB"]]),
             "min_size_mb": min([b["size"] for b in categories["greater_than_5MB"]], default=0),
             "max_size_mb": max([b["size"] for b in categories["greater_than_5MB"]], default=0),
-            "percentage": len(categories["greater_than_5MB"]) / total blocks * 100
+            "percentage": len(categories["greater_than_5MB"]) / total_blocks * 100
         },
         "start_script_time": start_script_time,
         "total_duration": time.time() - start_script_time,
@@ -595,4 +595,4 @@ if __name__ == "__main__":
     json_file = sys.argv[7] if len(sys.argv) == 8 else None
 
     main(json_workers, fetch_workers, lower_height, upper_height, endpoint_type, endpoint_urls, json_file)
-
+    
