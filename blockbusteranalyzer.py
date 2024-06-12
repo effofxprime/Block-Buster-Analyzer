@@ -15,11 +15,11 @@ import requests_unixsocket
 import json
 import time
 import sys
-import re
 from datetime import datetime, timedelta
 from urllib.parse import quote_plus
+import os
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from tabulate import tabulate
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
@@ -27,9 +27,10 @@ import numpy as np
 import signal
 import threading
 import matplotlib.dates as mdates
+import pandas as pd
 import plotly.express as px
 
-# ANSI escape sequences for 256 colors (Bash colors)
+# ANSI escape sequences for 256 colors (bash)
 bash_color_green = "\033[38;5;10m"  # Green
 bash_color_yellow = "\033[38;5;11m"  # Yellow
 bash_color_orange = "\033[38;5;214m"  # Orange
@@ -40,17 +41,6 @@ bash_color_dark_grey = "\033[38;5;245m"  # Dark Grey
 bash_color_light_green = "\033[38;5;121m"  # Light Green
 bash_color_teal = "\033[38;5;74m"  # Teal
 bash_color_reset = "\033[0m"  # Reset
-
-# Python color names for Matplotlib
-py_color_green = "green"
-py_color_yellow = "yellow"
-py_color_orange = "orange"
-py_color_red = "red"
-py_color_magenta = "magenta"
-py_color_light_blue = "lightblue"
-py_color_dark_grey = "darkgrey"
-py_color_light_green = "lightgreen"
-py_color_teal = "teal"
 
 # Global variable to manage executor shutdown
 executor = None
@@ -76,9 +66,17 @@ def fetch_block_info(endpoint_type, endpoint_url, height):
             response = session.get(encoded_url, timeout=10)
         else:
             response = requests.get(f"{endpoint_url}/block?height={height}", timeout=10)
-            response.raise_for_status()
-        return response.json()
-    except requests.RequestException:
+        response.raise_for_status()
+        block_info = response.json()
+        block_size = len(json.dumps(block_info))
+        block_time = block_info['result']['block']['header']['time']
+        return {
+            "height": height,
+            "size": block_size / 1048576,  # Base 2: 1MB = 1,048,576 bytes
+            "time": block_time
+        }
+    except requests.RequestException as e:
+        print(f"Error fetching data for block {height}: {e}")
         return None
 
 def find_lowest_height(endpoint_type, endpoint_url):
@@ -89,7 +87,7 @@ def find_lowest_height(endpoint_type, endpoint_url):
             response = session.get(encoded_url, timeout=10)
         else:
             response = requests.get(f"{endpoint_url}/block?height=1", timeout=10)
-            response.raise_for_status()
+        response.raise_for_status()
         block_info = response.json()
         if 'error' in block_info and 'data' in block_info['error']:
             data_message = block_info['error']['data']
@@ -131,10 +129,8 @@ def process_block(height, endpoint_type, endpoint_url):
     if block_info is None:
         return None
 
-    block_size = len(json.dumps(block_info))
-    block_size_mb = block_size / 1048576  # Base 2: 1MB = 1,048,576 bytes
-
-    block_time = parse_timestamp(block_info['result']['block']['header']['time'])
+    block_size_mb = block_info["size"]
+    block_time = parse_timestamp(block_info['time'])
     return (height, block_size_mb, block_time)
 
 def signal_handler(sig, frame):
@@ -161,6 +157,8 @@ def categorize_block(block, categories):
 
 def generate_graphs_and_table(data, output_image_file_base, lower_height, upper_height):
     block_data = data["block_data"]
+    total_blocks = len(block_data)
+
     categories = {
         "less_than_1MB": data.get("less_than_1MB", []),
         "1MB_to_2MB": data.get("1MB_to_2MB", []),
@@ -168,7 +166,7 @@ def generate_graphs_and_table(data, output_image_file_base, lower_height, upper_
         "3MB_to_5MB": data.get("3MB_to_5MB", []),
         "greater_than_5MB": data.get("greater_than_5MB", [])
     }
-    
+
     total_blocks = sum(len(v) for v in categories.values())
 
     # Print table to console
@@ -178,18 +176,40 @@ def generate_graphs_and_table(data, output_image_file_base, lower_height, upper_
         [f"{bash_color_green}Less than 1MB{bash_color_reset}", f"{bash_color_green}{len(categories['less_than_1MB'])}{bash_color_reset}", f"{bash_color_green}{len(categories['less_than_1MB']) / total_blocks * 100:.2f}%{bash_color_reset}", f"{bash_color_green}{calculate_avg([b['size'] for b in categories['less_than_1MB']]):.2f}{bash_color_reset}", f"{bash_color_green}{min([b['size'] for b in categories['less_than_1MB']], default=0):.2f}{bash_color_reset}", f"{bash_color_green}{max([b['size'] for b in categories['less_than_1MB']], default=0):.2f}{bash_color_reset}"],
         [f"{bash_color_yellow}1MB to 2MB{bash_color_reset}", f"{bash_color_yellow}{len(categories['1MB_to_2MB'])}{bash_color_reset}", f"{bash_color_yellow}{len(categories['1MB_to_2MB']) / total_blocks * 100:.2f}%{bash_color_reset}", f"{bash_color_yellow}{calculate_avg([b['size'] for b in categories['1MB_to_2MB']]):.2f}{bash_color_reset}", f"{bash_color_yellow}{min([b['size'] for b in categories['1MB_to_2MB']], default=0):.2f}{bash_color_reset}", f"{bash_color_yellow}{max([b['size'] for b in categories['1MB_to_2MB']], default=0):.2f}{bash_color_reset}"],
         [f"{bash_color_orange}2MB to 3MB{bash_color_reset}", f"{bash_color_orange}{len(categories['2MB_to_3MB'])}{bash_color_reset}", f"{bash_color_orange}{len(categories['2MB_to_3MB']) / total_blocks * 100:.2f}%{bash_color_reset}", f"{bash_color_orange}{calculate_avg([b['size'] for b in categories['2MB_to_3MB']]):.2f}{bash_color_reset}", f"{bash_color_orange}{min([b['size'] for b in categories['2MB_to_3MB']], default=0):.2f}{bash_color_reset}", f"{bash_color_orange}{max([b['size'] for b in categories['2MB_to_3MB']], default=0):.2f}{bash_color_reset}"],
-        [f"{bash_color_red}3MB to 5MB{bash_color_reset}", f"{bash_color_red}{len(categories['3MB_to_5MB'])}{bash_color_reset}", f"{bash_color_red}{len(categories['3MB_to_5MB']) / total_blocks * 100:.2f}%{bash_color_reset}", f"{bash_color_red}{calculate_avg([b['size'] for b in categories['3MB_to_5MB']]):.2f}{bash_color_reset}", f"{bash_color_red}{min([b['size'] for b in categories['3MB_to_5MB']], default=0):.2f}{bash_color_reset}", f"{bash_color_red}{max([b['size'] for b in categories['3MB_to_5MB']], default=0):.2f}{bash_color_reset}"],
+        [f"{bash_color_red}3MB to 5MB{bash_color_reset}", f"{bash_color_red}{len(categories['3MB_to_5MB'])}{bash_color_reset}", f"{bash_color_red}{len(categories['3MB_to_5MB']) / total_blocks * 100:.2f}%{bash_color_reset}", f"{bash_color_red}{calculate_avg([b['size'] for b in categories['3MB_to_5MB']]):.2f}{bash_color_reset}", f"{bash_color_red}{min([b['size'] for b in categories['3MB_to_5MB']], default=0): .2f}{bash_color_reset}", f"{bash_color_red}{max([b['size'] for b in categories['3MB_to_5MB']], default=0):.2f}{bash_color_reset}"],
         [f"{bash_color_magenta}Greater than 5MB{bash_color_reset}", f"{bash_color_magenta}{len(categories['greater_than_5MB'])}{bash_color_reset}", f"{bash_color_magenta}{len(categories['greater_than_5MB']) / total_blocks * 100:.2f}%{bash_color_reset}", f"{bash_color_magenta}{calculate_avg([b['size'] for b in categories['greater_than_5MB']]):.2f}{bash_color_reset}", f"{bash_color_magenta}{min([b['size'] for b in categories['greater_than_5MB']], default=0):.2f}{bash_color_reset}", f"{bash_color_magenta}{max([b['size'] for b in categories['greater_than_5MB']], default=0):.2f}{bash_color_reset}"]
     ]
-    print_table(headers, table)
+    
+    col_widths = [max(len(str(cell)) for cell in col) for col in zip(*table, headers)]
+    table_str = "\n".join(
+        " | ".join(f"{cell:>{width}}" for cell, width in zip(row, col_widths))
+        for row in [headers] + table
+    )
+    table_str = table_str.replace("+", f"{bash_color_dark_grey}+{bash_color_reset}").replace("-", f"{bash_color_dark_grey}-{bash_color_reset}").replace("|", f"{bash_color_dark_grey}|{bash_color_reset}")
+    print(table_str)
+
+    times = [datetime.fromisoformat(b['time']) for b in block_data]
+    sizes = [b['size'] for b in block_data]
+    colors = [
+        bash_color_green if size < 1 else
+        bash_color_yellow if size < 2 else
+        bash_color_orange if size < 3 else
+        bash_color_red if size < 5 else
+        bash_color_magenta
+        for size in sizes
+    ]
+
+    legend_patches = [
+        mpatches.Patch(color='green', label='< 1MB'),
+        mpatches.Patch(color='yellow', label='1MB to 2MB'),
+        mpatches.Patch(color='orange', label='2MB to 3MB'),
+        mpatches.Patch(color='red', label='3MB to 5MB'),
+        mpatches.Patch(color='magenta', label='> 5MB')
+    ]
 
     # Scatter plot
-    print(f"{bash_color_light_blue}Generating the scatter plot...{bash_color_reset}")
+    print(f"{bash_color_teal}Generating the scatter plot...{bash_color_reset}")
     fig, ax = plt.subplots(figsize=(38, 20))
-    all_blocks = [block for blocks in categories.values() for block in blocks]
-    times = [datetime.strptime(block['time'], "%Y-%m-%dT%H:%M:%S") for block in all_blocks]
-    sizes = [block['size'] for block in all_blocks]
-    colors = [py_color_green if block['size'] < 1 else py_color_yellow if block['size'] < 2 else py_color_orange if block['size'] < 3 else py_color_red if block['size'] < 5 else py_color_magenta for block in all_blocks]
     ax.scatter(times, sizes, color=colors)
     ax.set_title(f'Block Size Over Time (Scatter Plot)\nBlock Heights {lower_height} to {upper_height}', fontsize=28)
     ax.set_xlabel('Time', fontsize=24)
@@ -199,20 +219,13 @@ def generate_graphs_and_table(data, output_image_file_base, lower_height, upper_
     ax.xaxis.set_minor_locator(mdates.DayLocator(interval=1))
     ax.tick_params(axis='x', labelrotation=45, labelsize=20)
     ax.tick_params(axis='y', labelsize=20)
-    legend_patches = [
-        plt.Line2D([0], [0], marker='o', color='w', label='Less than 1MB', markerfacecolor=py_color_green, markersize=10),
-        plt.Line2D([0], [0], marker='o', color='w', label='1MB to 2MB', markerfacecolor=py_color_yellow, markersize=10),
-        plt.Line2D([0], [0], marker='o', color='w', label='2MB to 3MB', markerfacecolor=py_color_orange, markersize=10),
-        plt.Line2D([0], [0], marker='o', color='w', label='3MB to 5MB', markerfacecolor=py_color_red, markersize=10),
-        plt.Line2D([0], [0], marker='o', color='w', label='Greater than 5MB', markerfacecolor=py_color_magenta, markersize=10)
-    ]
     ax.legend(handles=legend_patches, loc='upper right', fontsize=20)
     plt.tight_layout()
     plt.savefig(f"{output_image_file_base}_scatter_plot.png")
     print(f"{bash_color_light_green}Scatter plot generated successfully.{bash_color_reset}")
 
     # Histogram plot
-    print(f"{bash_color_light_blue}Generating the histogram plot...{bash_color_reset}")
+    print(f"{bash_color_teal}Generating the histogram plot...{bash_color_reset}")
     fig, ax = plt.subplots(figsize=(38, 20))
     ax.hist(sizes, bins=50, color='b', edgecolor='black')
     ax.set_title(f'Block Size Distribution (Histogram)\nBlock Heights {lower_height} to {upper_height}', fontsize=28)
@@ -225,22 +238,20 @@ def generate_graphs_and_table(data, output_image_file_base, lower_height, upper_
     print(f"{bash_color_light_green}Histogram plot generated successfully.{bash_color_reset}")
 
     # Interactive scatter plot
-    print(f"{bash_color_light_blue}Generating the interactive scatter plot...{bash_color_reset}")
+    print(f"{bash_color_teal}Generating the interactive scatter plot...{bash_color_reset}")
     df = pd.DataFrame({
         "Time": times,
-        "Size (MB)": sizes,
-        "Category": ["< 1MB" if size < 1 else "1MB to 2MB" if size < 2 else "2MB to 3MB" if size < 3 else "3MB to 5MB" if size < 5 else "> 5MB" for size in sizes]
+        "Block Size (MB)": sizes,
+        "Block Category": [
+            '< 1MB' if size < 1 else
+            '1MB to 2MB' if size < 2 else
+            '2MB to 3MB' if size < 3 else
+            '3MB to 5MB' if size < 5 else
+            '> 5MB'
+            for size in sizes
+        ]
     })
-    fig = px.scatter(df, x="Time", y="Size (MB)", color="Category",
-                     title=f'Block Size Over Time (Scatter Plot)\nBlock Heights {lower_height} to {upper_height}',
-                     labels={"Time": "Time", "Size (MB)": "Block Size (MB)"},
-                     color_discrete_map={
-                         "< 1MB": py_color_green,
-                         "1MB to 2MB": py_color_yellow,
-                         "2MB to 3MB": py_color_orange,
-                         "3MB to 5MB": py_color_red,
-                         "> 5MB": py_color_magenta
-                     })
+    fig = px.scatter(df, x="Time", y="Block Size (MB)", color="Block Category", title="Block Size Over Time (Interactive Scatter Plot)")
     fig.write_html(f"{output_image_file_base}_interactive_scatter_plot.html")
     print(f"{bash_color_light_green}Interactive scatter plot generated successfully.{bash_color_reset}")
 
@@ -306,13 +317,6 @@ def main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls, 
     output_file = f"block_sizes_{lower_height}_to_{upper_height}_{start_time.strftime('%Y%m%d_%H%M%S')}.json"
     output_image_file_base = f"block_sizes_{lower_height}_to_{upper_height}_{start_time.strftime('%Y%m%d_%H%M%S')}"
 
-    categories = {
-        "less_than_1MB": [],
-        "1MB_to_2MB": [],
-        "2MB_to_3MB": [],
-        "3MB_to_5MB": [],
-        "greater_than_5MB": []
-    }
     block_data = []
 
     total_blocks = upper_height - lower_height + 1
@@ -337,8 +341,6 @@ def main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls, 
                 height, block_size_mb, block_time = result
                 block_data.append({"height": height, "size": block_size_mb, "time": block_time.isoformat()})
 
-                categorize_block({"height": height, "size": block_size_mb, "time": block_time.isoformat()}, categories)
-
             except Exception as e:
                 print(f"{bash_color_red}Error processing block {future_to_height[future]}: {e}{bash_color_reset}")
 
@@ -356,6 +358,16 @@ def main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls, 
         sys.exit(0)
 
     executor.shutdown(wait=True)
+
+    categories = {
+        "less_than_1MB": [],
+        "1MB_to_2MB": [],
+        "2MB_to_3MB": [],
+        "3MB_to_5MB": [],
+        "greater_than_5MB": []
+    }
+    for block in block_data:
+        categorize_block(block, categories)
 
     result = {
         "connection_type": endpoint_type,
