@@ -6,8 +6,8 @@
 # @Twitter - https://twitter.com/ErialosOfAstora
 # @Date - 2024-06-06 15:19:00 UTC
 # @Last_Modified_By - Jonathan - Erialos
-# @Last_Modified_Time - 2024-06-12 01:00:00 UTC
-# @Version - 1.0.3
+# @Last_Modified_Time - 2024-06-12 02:30:00 UTC
+# @Version - 1.0.4
 # @Description - A tool to analyze block sizes in a blockchain.
 
 import requests
@@ -15,7 +15,6 @@ import requests_unixsocket
 import json
 import time
 import sys
-import re
 from datetime import datetime, timedelta
 from urllib.parse import quote_plus
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -136,11 +135,11 @@ def generate_graphs_and_table(data, output_image_file_base, lower_height, upper_
     block_data = data["block_data"]
     total_blocks = len(block_data)
 
-    green_blocks = data["less_than_1MB"]
-    yellow_blocks = data["1MB_to_2MB"]
-    orange_blocks = data["2MB_to_3MB"]
-    red_blocks = data["3MB_to_5MB"]
-    magenta_blocks = data["greater_than_5MB"]
+    green_blocks = data.get("less_than_1MB", [])
+    yellow_blocks = data.get("1MB_to_2MB", [])
+    orange_blocks = data.get("2MB_to_3MB", [])
+    red_blocks = data.get("3MB_to_5MB", [])
+    magenta_blocks = data.get("greater_than_5MB", [])
 
     print(f"{color_teal}\nNumber of blocks in each group for block heights {lower_height} to {upper_height}:{color_reset}")
     headers = [f"{color_teal}Block Size Range{color_reset}", f"{color_teal}Count{color_reset}", f"{color_teal}Percentage{color_reset}", f"{color_teal}Average Size (MB){color_reset}", f"{color_teal}Min Size (MB){color_reset}", f"{color_teal}Max Size (MB){color_reset}"]
@@ -229,7 +228,7 @@ def generate_graphs_and_table(data, output_image_file_base, lower_height, upper_
         plt.savefig(f"{output_image_file_base}_histogram.png")
         print(f"{color_light_green}Histogram plot generated successfully.{color_reset}")
     else:
-        print("No data to plot.")
+        print(f"{color_red}No data to plot.{color_reset}")
 
 def main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls, json_file=None):
     global executor
@@ -242,7 +241,7 @@ def main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls, 
                 lower_height = int(match.group(1))
                 upper_height = int(match.group(2))
             else:
-                print("Error: The provided JSON file does not contain 'lower_height' or 'upper_height' keys.")
+                print(f"{color_red}Error: The provided JSON file does not contain 'lower_height' or 'upper_height' keys.{color_reset}")
                 return
         else:
             lower_height = data["lower_height"]
@@ -269,7 +268,7 @@ def main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls, 
         lower_height = find_lowest_height(endpoint_type, endpoint_urls)
         if lower_height is None:
             print(f"{color_red}Failed to determine the earliest block height. Exiting.{color_reset}")
-        sys.exit(1)
+            sys.exit(1)
         print(f"{color_light_blue}Using earliest available block height: {lower_height}{color_reset}")
 
     if lower_height > upper_height:
@@ -324,14 +323,14 @@ def main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls, 
                     green_blocks.append({"height": height, "size": block_size_mb, "time": block_time.isoformat()})
 
             except Exception as e:
-                print(f"Error processing block {future_to_height[future]}: {e}")
+                print(f"{color_red}Error processing block {future_to_height[future]}: {e}{color_reset}")
 
             completed += 1
             progress = (completed / total_blocks) * 100
             elapsed_time = time.time() - start_script_time
             estimated_total_time = elapsed_time / completed * total_blocks
             time_left = estimated_total_time - elapsed_time
-            print(f"{color_light_blue}Progress: {progress:.2f}% ({completed}/{total_blocks}) - Estimated time left: {timedelta(seconds=int(time_left))}", end='\r')
+            print(f"{color_light_blue}Progress: {progress:.2f}% ({completed}/{total_blocks}) - Estimated time left: {timedelta(seconds=int(time_left))}{color_reset}", end='\r')
     except KeyboardInterrupt:
         shutdown_event.set()
         if executor:
@@ -349,7 +348,7 @@ def main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls, 
         "1MB_to_2MB": yellow_blocks,
         "2MB_to_3MB": orange_blocks,
         "3MB_to_5MB": red_blocks,
-        "greater_than 5MB": magenta_blocks,
+        "greater_than_5MB": magenta_blocks,
         "block_data": block_data,
         "stats": {
             "less_than_1MB": {
