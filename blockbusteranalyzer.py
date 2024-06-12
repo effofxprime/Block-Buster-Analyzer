@@ -6,7 +6,7 @@
 # @Twitter - https://twitter.com/ErialosOfAstora
 # @Date - 2024-06-06 15:19:00 UTC
 # @Last_Modified_By - Jonathan - Erialos
-# @Last_Modified_Time - 2024-06-14 10:00:00 UTC
+# @Last_Modified_Time - 2024-06-15 15:00:00 UTC
 # @Version - 1.0.6
 # @Description - A tool to analyze block sizes in a blockchain.
 
@@ -30,6 +30,7 @@ import threading
 import matplotlib.dates as mdates
 import pandas as pd
 import seaborn as sns
+import multiprocessing
 
 # ANSI escape sequences for 256 colors (Bash colors)
 bash_color_green = "\033[38;5;10m"  # Green
@@ -58,6 +59,7 @@ py_color_blue = "blue"
 # Global variable to manage executor shutdown
 executor = None
 shutdown_event = threading.Event()
+cpu_count = multiprocessing.cpu_count()
 
 def check_endpoint(endpoint_type, endpoint_url):
     try:
@@ -305,19 +307,19 @@ def generate_graphs_and_table(data, output_image_file_base, lower_height, upper_
     plt.savefig(f"{output_image_file_base}_heatmap.png")
     print(f"{bash_color_light_green}Heatmap generated successfully.{bash_color_reset}")
 
-def main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls, json_file=None):
+def main(json_workers, fetch_workers, lower_height, upper_height, endpoint_type, endpoint_urls, json_file=None):
     global executor
     endpoint_urls = endpoint_urls.split(',')
-    endpoints = []
+    endpoint = endpoint_urls[0]  # Use the first endpoint for now
 
-    # Health check for endpoints
-    for endpoint in endpoint_urls:
-        if check_endpoint(endpoint_type, endpoint):
-            endpoints.append(endpoint)
+    if json_workers <= 0:
+        json_workers = max(1, cpu_count // 2)
+    if fetch_workers <= 0:
+        fetch_workers = max(1, cpu_count // 2)
 
-    if not endpoints:
-        print(f"{bash_color_red}No healthy RPC endpoints available. Exiting.{bash_color_reset}")
-        return
+    if json_workers > cpu_count:
+        json_workers = cpu_count
+        print(f"{bash_color_yellow}json_workers set to {json_workers} due to CPU count limitation.{bash_color_reset}")
 
     if json_file:
         with open(json_file, 'r') as f:
@@ -333,23 +335,14 @@ def main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls, 
         else:
             lower_height = data["lower_height"]
             upper_height = data["upper_height"]
-
-        # Concurrently generate graphs
-        with ThreadPoolExecutor(max_workers=num_workers) as executor:
-            graph_tasks = [
-                executor.submit(generate_graphs_and_table, data, json_file.split('.json')[0], lower_height, upper_height)
-            ]
-
-            for future in as_completed(graph_tasks):
-                future.result()
-
+        generate_graphs_and_table(data, json_file.split('.json')[0], lower_height, upper_height)
         return
 
     print(f"{bash_color_light_blue}\nChecking the specified starting block height...{bash_color_reset}")
 
     retries = 3
     for attempt in range(retries):
-        if check_endpoint(endpoint_type, endpoints[0]):
+        if check_endpoint(endpoint_type, endpoint_urls):
             break
         else:
             print(f"{bash_color_yellow}RPC endpoint unreachable. Retrying {attempt + 1}/{retries}...{bash_color_reset}")
@@ -358,10 +351,10 @@ def main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls, 
         print(f"{bash_color_red}RPC endpoint unreachable after multiple attempts. Exiting.{bash_color_reset}")
         sys.exit(1)
 
-    block_info = fetch_block_info(endpoint_type, endpoints[0], lower_height)
+    block_info = fetch_block_info(endpoint_type, endpoint_urls, lower_height)
     if block_info is None:
         print(f"{bash_color_yellow}Block height {lower_height} does not exist. Finding the earliest available block height...{bash_color_reset}")
-        lower_height = find_lowest_height(endpoint_type, endpoints[0])
+        lower_height = find_lowest_height(endpoint_type, endpoint_urls)
         if lower_height is None:
             print(f"{bash_color_red}Failed to determine the earliest block height. Exiting.{bash_color_reset}")
             sys.exit(1)
@@ -392,8 +385,8 @@ def main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls, 
 
     print(f"{bash_color_dark_grey}\n{'='*40}\n{bash_color_reset}")
 
-    executor = ThreadPoolExecutor(max_workers=num_workers)
-    future_to_height = {executor.submit(process_block, height, endpoint_type, endpoints[0]): height for height in range(lower_height, upper_height + 1)}
+    executor = ThreadPoolExecutor(max_workers=fetch_workers)
+    future_to_height = {executor.submit(process_block, height, endpoint_type, endpoint_urls): height for height in range(lower_height, upper_height + 1)}
 
     completed = 0
     try:
@@ -431,7 +424,7 @@ def main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls, 
 
     result = {
         "connection_type": endpoint_type,
-        "endpoint": endpoints,
+        "endpoint": endpoint_urls,
         "run_time": current_date,
         "less_than_1MB": categories["less_than_1MB"],
         "1MB_to_2MB": categories["1MB_to_2MB"],
@@ -489,16 +482,17 @@ def main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls, 
     generate_graphs_and_table(result, output_image_file_base, lower_height, upper_height)
 
 if __name__ == "__main__":
-    if len(sys.argv) != 6 and len(sys.argv) != 7:
-        print(f"{bash_color_red}Usage: python blockbusteranalyzer.py <num_workers> <lower_height> <upper_height> <endpoint_type> <endpoint_urls> [json_file]{bash_color_reset}")
+    if len(sys.argv) not in {6, 8}:
+        print(f"{bash_color_red}Usage: python blockbusteranalyzer.py <json_workers> <fetch_workers> <lower_height> <upper_height> <endpoint_type> <endpoint_urls> [json_file]{bash_color_reset}")
         sys.exit(1)
 
-    num_workers = int(sys.argv[1])
-    lower_height = int(sys.argv[2])
-    upper_height = int(sys.argv[3])
-    endpoint_type = sys.argv[4]
-    endpoint_urls = sys.argv[5]
+    json_workers = int(sys.argv[1])
+    fetch_workers = int(sys.argv[2])
+    lower_height = int(sys.argv[3])
+    upper_height = int(sys.argv[4])
+    endpoint_type = sys.argv[5]
+    endpoint_urls = sys.argv[6]
 
-    json_file = sys.argv[6] if len(sys.argv) == 7 else None
+    json_file = sys.argv[7] if len(sys.argv) == 8 else None
 
-    main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls, json_file)
+    main(json_workers, fetch_workers, lower_height, upper_height, endpoint_type, endpoint_urls, json_file)
