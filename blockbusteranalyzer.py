@@ -6,7 +6,7 @@
 # @Twitter - https://twitter.com/ErialosOfAstora
 # @Date - 2024-06-06 15:19:00 UTC
 # @Last_Modified_By - Jonathan - Erialos
-# @Last_Modified_Time - 2024-06-13 14:00:00 UTC
+# @Last_Modified_Time - 2024-06-14 10:00:00 UTC
 # @Version - 1.0.6
 # @Description - A tool to analyze block sizes in a blockchain.
 
@@ -308,7 +308,16 @@ def generate_graphs_and_table(data, output_image_file_base, lower_height, upper_
 def main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls, json_file=None):
     global executor
     endpoint_urls = endpoint_urls.split(',')
-    endpoint = endpoint_urls[0]  # Use the first endpoint for now
+    endpoints = []
+
+    # Health check for endpoints
+    for endpoint in endpoint_urls:
+        if check_endpoint(endpoint_type, endpoint):
+            endpoints.append(endpoint)
+
+    if not endpoints:
+        print(f"{bash_color_red}No healthy RPC endpoints available. Exiting.{bash_color_reset}")
+        return
 
     if json_file:
         with open(json_file, 'r') as f:
@@ -324,14 +333,23 @@ def main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls, 
         else:
             lower_height = data["lower_height"]
             upper_height = data["upper_height"]
-        generate_graphs_and_table(data, json_file.split('.json')[0], lower_height, upper_height)
+
+        # Concurrently generate graphs
+        with ThreadPoolExecutor(max_workers=num_workers) as executor:
+            graph_tasks = [
+                executor.submit(generate_graphs_and_table, data, json_file.split('.json')[0], lower_height, upper_height)
+            ]
+
+            for future in as_completed(graph_tasks):
+                future.result()
+
         return
 
     print(f"{bash_color_light_blue}\nChecking the specified starting block height...{bash_color_reset}")
 
     retries = 3
     for attempt in range(retries):
-        if check_endpoint(endpoint_type, endpoint_urls):
+        if check_endpoint(endpoint_type, endpoints[0]):
             break
         else:
             print(f"{bash_color_yellow}RPC endpoint unreachable. Retrying {attempt + 1}/{retries}...{bash_color_reset}")
@@ -340,10 +358,10 @@ def main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls, 
         print(f"{bash_color_red}RPC endpoint unreachable after multiple attempts. Exiting.{bash_color_reset}")
         sys.exit(1)
 
-    block_info = fetch_block_info(endpoint_type, endpoint_urls, lower_height)
+    block_info = fetch_block_info(endpoint_type, endpoints[0], lower_height)
     if block_info is None:
         print(f"{bash_color_yellow}Block height {lower_height} does not exist. Finding the earliest available block height...{bash_color_reset}")
-        lower_height = find_lowest_height(endpoint_type, endpoint_urls)
+        lower_height = find_lowest_height(endpoint_type, endpoints[0])
         if lower_height is None:
             print(f"{bash_color_red}Failed to determine the earliest block height. Exiting.{bash_color_reset}")
             sys.exit(1)
@@ -375,7 +393,7 @@ def main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls, 
     print(f"{bash_color_dark_grey}\n{'='*40}\n{bash_color_reset}")
 
     executor = ThreadPoolExecutor(max_workers=num_workers)
-    future_to_height = {executor.submit(process_block, height, endpoint_type, endpoint_urls): height for height in range(lower_height, upper_height + 1)}
+    future_to_height = {executor.submit(process_block, height, endpoint_type, endpoints[0]): height for height in range(lower_height, upper_height + 1)}
 
     completed = 0
     try:
@@ -413,7 +431,7 @@ def main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls, 
 
     result = {
         "connection_type": endpoint_type,
-        "endpoint": endpoint_urls,
+        "endpoint": endpoints,
         "run_time": current_date,
         "less_than_1MB": categories["less_than_1MB"],
         "1MB_to_2MB": categories["1MB_to_2MB"],
@@ -471,7 +489,7 @@ def main(num_workers, lower_height, upper_height, endpoint_type, endpoint_urls, 
     generate_graphs_and_table(result, output_image_file_base, lower_height, upper_height)
 
 if __name__ == "__main__":
-    if len(sys.argv) not in {6, 7}:
+    if len(sys.argv) != 6 and len(sys.argv) != 7:
         print(f"{bash_color_red}Usage: python blockbusteranalyzer.py <num_workers> <lower_height> <upper_height> <endpoint_type> <endpoint_urls> [json_file]{bash_color_reset}")
         sys.exit(1)
 

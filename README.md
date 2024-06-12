@@ -11,7 +11,7 @@ BlockBusterAnalyzer is a tool to monitor and analyze the sizes of blocks in a bl
 - Provides progress updates during execution, including estimated time left and total duration
 - Uses multithreading to improve performance for large block ranges
 - Pretty console output with colors and table formatting
-- Plots a graph of block size over time
+- Plots various graphs of block size over time
 
 ## Dependencies
 
@@ -19,9 +19,12 @@ BlockBusterAnalyzer is a tool to monitor and analyze the sizes of blocks in a bl
 
 - `requests`
 - `requests-unixsocket`
-- `colorama`
+- `tqdm`
 - `tabulate`
 - `matplotlib`
+- `pandas`
+- `seaborn`
+- `numpy`
 - `concurrent.futures` (standard library, no extra installation required)
 
 ## Installation
@@ -33,7 +36,7 @@ BlockBusterAnalyzer is a tool to monitor and analyze the sizes of blocks in a bl
 1. **Install Python dependencies**
 
     ```sh
-    pip install requests requests-unixsocket colorama tabulate matplotlib
+    pip install requests requests-unixsocket tqdm tabulate matplotlib pandas seaborn numpy
     ```
 
 2. **Create a virtual environment (optional but recommended)**
@@ -49,7 +52,7 @@ BlockBusterAnalyzer is a tool to monitor and analyze the sizes of blocks in a bl
 
     ```sh
     sudo apt-get update
-    sudo apt-get install python3-requests python3-requests-unixsocket python3-colorama python3-tabulate python3-matplotlib
+    sudo apt-get install python3-requests python3-requests-unixsocket python3-tqdm python3-tabulate python3-matplotlib python3-pandas python3-seaborn python3-numpy
     ```
 
 ## Usage
@@ -59,7 +62,7 @@ BlockBusterAnalyzer is a tool to monitor and analyze the sizes of blocks in a bl
 1. **Run the script**
 
     ```sh
-    python3 blockbusteranalyzer.py <num_workers> <lower_height> <upper_height> <endpoint_type> <endpoint_url1,endpoint_url2,...>
+    python3 blockbusteranalyzer.py <num_workers> <lower_height> <upper_height> <endpoint_type> <endpoint_urls> [json_file]
     ```
 
     Example:
@@ -67,11 +70,20 @@ BlockBusterAnalyzer is a tool to monitor and analyze the sizes of blocks in a bl
     ```sh
     python3 blockbusteranalyzer.py 10 7500000 7909000 "tcp" "https://rpc.jackalprotocol.com:443,https://another.rpc.endpoint:443"
     python3 blockbusteranalyzer.py 10 7500000 7909000 "socket" "/dev/shm/jackal/trpc.socket"
+    python3 blockbusteranalyzer.py 10 7500000 7909000 "tcp" "https://rpc.jackalprotocol.com:443" "block_sizes_7500000_to_7909000_20240614_100000.json"
     ```
 
 ## Output
 
 The script will output the block sizes in JSON format and generate various graphs based on the block size data.
+
+### Console Output Example
+
+*(Add screenshot of console output here)*
+
+### Generated Graphs
+
+*(Add screenshots of the generated graphs here)*
 
 ## Contributing
 
