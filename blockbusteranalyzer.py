@@ -6,7 +6,7 @@
 # @Twitter - https://twitter.com/ErialosOfAstora
 # @Date - 2024-06-06 15:19:00 UTC
 # @Last_Modified_By - Jonathan - Erialos
-# @Last_Modified_Time - 2024-06-15 17:00:00 UTC
+# @Last_Modified_Time - 2024-06-17 15:00:00 UTC
 # @Version - 1.0.7
 # @Description - A tool to analyze block sizes in a blockchain.
 
@@ -30,6 +30,8 @@ import threading
 import matplotlib.dates as mdates
 import pandas as pd
 import seaborn as sns
+from statsmodels.tsa.seasonal import seasonal_decompose
+import networkx as nx
 
 # ANSI escape sequences for 256 colors (Bash colors)
 bash_color_green = "\033[38;5;10m"  # Green
@@ -163,89 +165,113 @@ def categorize_block(block, categories):
     else:
         categories["greater_than_5MB"].append(block)
 
-def generate_scatter_plot(times, sizes, colors, output_image_file_base, lower_height, upper_height):
-    fig, ax = plt.subplots(figsize=(38, 20))
-    ax.scatter(times, sizes, color=colors)
-    ax.set_title(f'Block Size Over Time (Scatter Plot)\nBlock Heights {lower_height} to {upper_height}', fontsize=28)
-    ax.set_xlabel('Time', fontsize=24)
-    ax.set_ylabel('Block Size (MB)', fontsize=24)
-    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
-    ax.xaxis.set_major_locator(mdates.DayLocator(interval=30))
-    ax.xaxis.set_minor_locator(mdates.DayLocator(interval=1))
-    ax.tick_params(axis='x', labelrotation=45, labelsize=20)
-    ax.tick_params(axis='y', labelsize=20)
-    legend_patches = [
-        plt.Line2D([0], [0], marker='o', color='w', label='Less than 1MB', markerfacecolor=py_color_green, markersize=10),
-        plt.Line2D([0], [0], marker='o', color='w', label='1MB to 2MB', markerfacecolor=py_color_yellow, markersize=10),
-        plt.Line2D([0], [0], marker='o', color='w', label='2MB to 3MB', markerfacecolor=py_color_orange, markersize=10),
-        plt.Line2D([0], [0], marker='o', color='w', label='3MB to 5MB', markerfacecolor=py_color_red, markersize=10),
-        plt.Line2D([0], [0], marker='o', color='w', label='Greater than 5MB', markerfacecolor=py_color_magenta, markersize=10)
-    ]
-    ax.legend(handles=legend_patches, loc='upper right', fontsize=20)
+# New chart generation functions
+def generate_cumulative_sum_plot(times, sizes, output_image_file_base):
+    cumulative_sum = np.cumsum(sizes)
+    plt.figure(figsize=(38, 20))
+    plt.plot(times, cumulative_sum, color=py_color_blue)
+    plt.title('Cumulative Sum of Block Sizes Over Time', fontsize=28)
+    plt.xlabel('Time', fontsize=24)
+    plt.ylabel('Cumulative Size (MB)', fontsize=24)
+    plt.xticks(rotation=45)
     plt.tight_layout()
-    plt.savefig(f"{output_image_file_base}_scatter_plot.png")
-    print(f"{bash_color_light_green}Scatter plot generated successfully.{bash_color_reset}")
+    plt.savefig(f"{output_image_file_base}_cumulative_sum_plot.png")
+    print(f"{bash_color_light_green}Cumulative sum plot generated successfully.{bash_color_reset}")
 
-def generate_enhanced_scatter_plot(times, sizes, colors, output_image_file_base, lower_height, upper_height):
-    fig, ax = plt.subplots(figsize=(38, 20))
-    ax.scatter(times, sizes, color=colors, alpha=0.6, edgecolors='w', linewidth=0.5)
-    ax.set_title(f'Enhanced Block Size Over Time (Scatter Plot)\nBlock Heights {lower_height} to {upper_height}', fontsize=28)
-    ax.set_xlabel('Time', fontsize=24)
-    ax.set_ylabel('Block Size (MB)', fontsize=24)
-    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
-    ax.xaxis.set_major_locator(mdates.DayLocator(interval=30))
-    ax.xaxis.set_minor_locator(mdates.DayLocator(interval=1))
-    ax.tick_params(axis='x', labelrotation=45, labelsize=20)
-    ax.tick_params(axis='y', labelsize=20)
-    legend_patches = [
-        plt.Line2D([0], [0], marker='o', color='w', label='Less than 1MB', markerfacecolor=py_color_green, markersize=10),
-        plt.Line2D([0], [0], marker='o', color='w', label='1MB to 2MB', markerfacecolor=py_color_yellow, markersize=10),
-        plt.Line2D([0], [0], marker='o', color='w', label='2MB to 3MB', markerfacecolor=py_color_orange, markersize=10),
-        plt.Line2D([0], [0], marker='o', color='w', label='3MB to 5MB', markerfacecolor=py_color_red, markersize=10),
-        plt.Line2D([0], [0], marker='o', color='w', label='Greater than 5MB', markerfacecolor=py_color_magenta, markersize=10)
-    ]
-    ax.legend(handles=legend_patches, loc='upper right', fontsize=20)
+def generate_rolling_average_plot(times, sizes, output_image_file_base):
+    rolling_avg = pd.Series(sizes).rolling(window=100).mean()
+    plt.figure(figsize=(38, 20))
+    plt.plot(times, rolling_avg, color=py_color_green)
+    plt.title('Rolling Average of Block Sizes', fontsize=28)
+    plt.xlabel('Time', fontsize=24)
+    plt.ylabel('Rolling Average Size (MB)', fontsize=24)
+    plt.xticks(rotation=45)
     plt.tight_layout()
-    plt.savefig(f"{output_image_file_base}_enhanced_scatter_plot.png")
-    print(f"{bash_color_light_green}Enhanced scatter plot generated successfully.{bash_color_reset}")
+    plt.savefig(f"{output_image_file_base}_rolling_average_plot.png")
+    print(f"{bash_color_light_green}Rolling average plot generated successfully.{bash_color_reset}")
 
-def generate_histogram_plot(sizes, output_image_file_base, lower_height, upper_height):
-    fig, ax = plt.subplots(figsize=(38, 20))
-    ax.hist(sizes, bins=50, color=py_color_blue, edgecolor='black')
-    ax.set_title(f'Block Size Distribution (Histogram)\nBlock Heights {lower_height} to {upper_height}', fontsize=28)
-    ax.set_xlabel('Block Size (MB)', fontsize=24)
-    ax.set_ylabel('Frequency', fontsize=24)
-    ax.tick_params(axis='x', labelsize=20)
-    ax.tick_params(axis='y', labelsize=20)
+def generate_violin_plot(sizes, output_image_file_base):
+    plt.figure(figsize=(38, 20))
+    sns.violinplot(data=sizes)
+    plt.title('Violin Plot of Block Sizes', fontsize=28)
+    plt.xlabel('Block Sizes', fontsize=24)
+    plt.ylabel('Density', fontsize=24)
     plt.tight_layout()
-    plt.savefig(f"{output_image_file_base}_histogram.png")
-    print(f"{bash_color_light_green}Histogram plot generated successfully.{bash_color_reset}")
+    plt.savefig(f"{output_image_file_base}_violin_plot.png")
+    print(f"{bash_color_light_green}Violin plot generated successfully.{bash_color_reset}")
 
-def generate_box_plot(times, sizes, output_image_file_base, lower_height, upper_height):
-    fig, ax = plt.subplots(figsize=(38, 20))
-    sns.boxplot(x=times, y=sizes, ax=ax)
-    ax.set_title(f'Block Size Distribution Over Time (Box Plot)\nBlock Heights {lower_height} to {upper_height}', fontsize=28)
-    ax.set_xlabel('Time', fontsize=24)
-    ax.set_ylabel('Block Size (MB)', fontsize=24)
-    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
-    ax.xaxis.set_major_locator(mdates.DayLocator(interval=30))
-    ax.xaxis.set_minor_locator(mdates.DayLocator(interval=1))
-    ax.tick_params(axis='x', labelrotation=45, labelsize=20)
-    ax.tick_params(axis='y', labelsize=20)
+def generate_autocorrelation_plot(sizes, output_image_file_base):
+    pd.plotting.autocorrelation_plot(pd.Series(sizes))
+    plt.title('Autocorrelation of Block Sizes', fontsize=28)
+    plt.xlabel('Lag', fontsize=24)
+    plt.ylabel('Autocorrelation', fontsize=24)
     plt.tight_layout()
-    plt.savefig(f"{output_image_file_base}_box_plot.png")
-    print(f"{bash_color_light_green}Box plot generated successfully.{bash_color_reset}")
+    plt.savefig(f"{output_image_file_base}_autocorrelation_plot.png")
+    print(f"{bash_color_light_green}Autocorrelation plot generated successfully.{bash_color_reset}")
 
-def generate_heatmap(sizes, output_image_file_base, lower_height, upper_height):
-    fig, ax = plt.subplots(figsize=(38, 20))
-    data_matrix = np.array([sizes]).T
-    sns.heatmap(data_matrix, ax=ax, cmap="YlGnBu")
-    ax.set_title(f'Block Size Heatmap\nBlock Heights {lower_height} to {upper_height}', fontsize=28)
-    ax.set_xlabel('Block Number', fontsize=24)
-    ax.set_ylabel('Block Size (MB)', fontsize=24)
+def generate_seasonal_decomposition_plot(times, sizes, output_image_file_base):
+    result = seasonal_decompose(pd.Series(sizes, index=times), model='additive', period=365)
+    fig = result.plot()
+    fig.set_size_inches(38, 20)
     plt.tight_layout()
-    plt.savefig(f"{output_image_file_base}_heatmap.png")
-    print(f"{bash_color_light_green}Heatmap generated successfully.{bash_color_reset}")
+    plt.savefig(f"{output_image_file_base}_seasonal_decomposition_plot.png")
+    print(f"{bash_color_light_green}Seasonal decomposition plot generated successfully.{bash_color_reset}")
+
+def generate_lag_plot(sizes, output_image_file_base):
+    pd.plotting.lag_plot(pd.Series(sizes))
+    plt.title('Lag Plot of Block Sizes', fontsize=28)
+    plt.xlabel('Previous Size', fontsize=24)
+    plt.ylabel('Current Size', fontsize=24)
+    plt.tight_layout()
+    plt.savefig(f"{output_image_file_base}_lag_plot.png")
+    print(f"{bash_color_light_green}Lag plot generated successfully.{bash_color_reset}")
+
+def generate_heatmap_with_dimensions(times, sizes, output_image_file_base):
+    data_matrix = np.column_stack([times, sizes])
+    plt.figure(figsize=(38, 20))
+    sns.heatmap(data_matrix, cmap="YlGnBu")
+    plt.title('Heatmap of Block Sizes with Additional Dimensions', fontsize=28)
+    plt.xlabel('Time', fontsize=24)
+    plt.ylabel('Block Size (MB)', fontsize=24)
+    plt.tight_layout()
+    plt.savefig(f"{output_image_file_base}_heatmap_with_dimensions.png")
+    print(f"{bash_color_light_green}Heatmap with additional dimensions generated successfully.{bash_color_reset}")
+
+def generate_network_graph(times, sizes, output_image_file_base):
+    G = nx.Graph()
+    for i in range(len(times) - 1):
+        G.add_edge(times[i], times[i+1], weight=sizes[i])
+    pos = nx.spring_layout(G)
+    plt.figure(figsize=(38, 20))
+    nx.draw(G, pos, with_labels=True, node_size=50, node_color=py_color_blue, edge_color=sizes, edge_cmap=plt.cm.Blues)
+    plt.title('Network Graph of Blocks', fontsize=28)
+    plt.tight_layout()
+    plt.savefig(f"{output_image_file_base}_network_graph.png")
+    print(f"{bash_color_light_green}Network graph generated successfully.{bash_color_reset}")
+
+def generate_outlier_detection_plot(sizes, output_image_file_base):
+    plt.figure(figsize=(38, 20))
+    plt.plot(sizes, color=py_color_blue)
+    outliers = [i for i, x in enumerate(sizes) if (x > np.mean(sizes) + 3 * np.std(sizes))]
+    plt.scatter(outliers, np.array(sizes)[outliers], color=py_color_red)
+    plt.title('Outlier Detection Plot', fontsize=28)
+    plt.xlabel('Index', fontsize=24)
+    plt.ylabel('Block Size (MB)', fontsize=24)
+    plt.tight_layout()
+    plt.savefig(f"{output_image_file_base}_outlier_detection_plot.png")
+    print(f"{bash_color_light_green}Outlier detection plot generated successfully.{bash_color_reset}")
+
+def generate_segmented_bar_chart(sizes, output_image_file_base):
+    bins = [0, 1, 2, 3, 5, 10]
+    hist, edges = np.histogram(sizes, bins=bins)
+    plt.figure(figsize=(38, 20))
+    plt.bar(edges[:-1], hist, width=np.diff(edges), edgecolor="black", align="edge")
+    plt.title('Segmented Bar Chart of Block Sizes', fontsize=28)
+    plt.xlabel('Block Size (MB)', fontsize=24)
+    plt.ylabel('Frequency', fontsize=24)
+    plt.tight_layout()
+    plt.savefig(f"{output_image_file_base}_segmented_bar_chart.png")
+    print(f"{bash_color_light_green}Segmented bar chart generated successfully.{bash_color_reset}")
 
 def generate_graphs_and_table(data, output_image_file_base, lower_height, upper_height):
     block_data = data["block_data"]
@@ -292,13 +318,18 @@ def generate_graphs_and_table(data, output_image_file_base, lower_height, upper_
         future = executor.submit(func, *args)
         return future
 
-    with ThreadPoolExecutor(max_workers=5) as executor:
+    with ThreadPoolExecutor(max_workers=10) as executor:
         futures = [
-            run_in_executor(generate_scatter_plot, times, sizes, colors, output_image_file_base, lower_height, upper_height),
-            run_in_executor(generate_enhanced_scatter_plot, times, sizes, colors, output_image_file_base, lower_height, upper_height),
-            run_in_executor(generate_histogram_plot, sizes, output_image_file_base, lower_height, upper_height),
-            run_in_executor(generate_box_plot, times, sizes, output_image_file_base, lower_height, upper_height),
-            run_in_executor(generate_heatmap, sizes, output_image_file_base, lower_height, upper_height),
+            run_in_executor(generate_cumulative_sum_plot, times, sizes, output_image_file_base),
+            run_in_executor(generate_rolling_average_plot, times, sizes, output_image_file_base),
+            run_in_executor(generate_violin_plot, sizes, output_image_file_base),
+            run_in_executor(generate_autocorrelation_plot, sizes, output_image_file_base),
+            run_in_executor(generate_seasonal_decomposition_plot, times, sizes, output_image_file_base),
+            run_in_executor(generate_lag_plot, sizes, output_image_file_base),
+            run_in_executor(generate_heatmap_with_dimensions, times, sizes, output_image_file_base),
+            run_in_executor(generate_network_graph, times, sizes, output_image_file_base),
+            run_in_executor(generate_outlier_detection_plot, sizes, output_image_file_base),
+            run_in_executor(generate_segmented_bar_chart, sizes, output_image_file_base)
         ]
         for future in as_completed(futures):
             try:
