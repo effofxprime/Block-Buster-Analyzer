@@ -37,6 +37,7 @@ bash_color_light_green = "\033[92m"
 bash_color_light_blue = "\033[94m"
 bash_color_light_magenta = "\033[95m"
 bash_color_teal = "\033[36m"
+bash_color_orange = "\033[38;5;214m"  # Orange
 
 # Define colors for plots
 py_color_green = "green"
