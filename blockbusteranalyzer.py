@@ -16,6 +16,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import networkx as nx
+import threading
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
@@ -47,7 +48,7 @@ py_color_blue = "blue"
 py_color_teal = "teal"
 py_color_dark_grey = "darkgrey"
 
-shutdown_event = signal.Event()
+shutdown_event = threading.Event()
 executor = None
 
 def signal_handler(sig, frame):
