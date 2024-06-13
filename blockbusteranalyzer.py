@@ -6,7 +6,7 @@
 # @Twitter - https://twitter.com/ErialosOfAstora
 # @Date - 2024-06-06 15:19:00 UTC
 # @Last_Modified_By - Jonathan - Erialos
-# @Last_Modified_Time - 2024-06-17 15:00:00 UTC
+# @Last_Modified_Time - 2024-06-17 17:00:00 UTC
 # @Version - 1.0.8
 # @Description - A tool to analyze block sizes in a blockchain.
 
@@ -147,7 +147,7 @@ def signal_handler(sig, frame):
     print(f"{bash_color_red}\nProcess interrupted. Exiting gracefully...{bash_color_reset}")
     shutdown_event.set()
     if executor:
-        executor.shutdown(wait=False)
+        executor.shutdown(wait=False, cancel_futures=True)
     sys.exit(0)
 
 signal.signal(signal.SIGINT, signal_handler)
@@ -165,6 +165,7 @@ def categorize_block(block, categories):
     else:
         categories["greater_than_5MB"].append(block)
 
+# New chart generation functions
 def generate_scatter_plot(times, sizes, colors, output_image_file_base, lower_height, upper_height):
     fig, ax = plt.subplots(figsize=(38, 20))
     ax.scatter(times, sizes, color=colors)
@@ -211,7 +212,6 @@ def generate_enhanced_scatter_plot(times, sizes, colors, output_image_file_base,
     plt.savefig(f"{output_image_file_base}_enhanced_scatter_plot.png")
     print(f"{bash_color_light_green}Enhanced scatter plot generated successfully.{bash_color_reset}")
 
-# Other chart generation functions
 def generate_cumulative_sum_plot(times, sizes, output_image_file_base):
     cumulative_sum = np.cumsum(sizes)
     plt.figure(figsize=(38, 20))
@@ -272,46 +272,55 @@ def generate_lag_plot(sizes, output_image_file_base):
     plt.savefig(f"{output_image_file_base}_lag_plot.png")
     print(f"{bash_color_light_green}Lag plot generated successfully.{bash_color_reset}")
 
-def generate_heatmap_with_dimensions(times, sizes, output_image_file_base):
-    data_matrix = np.column_stack([times, sizes])
-    plt.figure(figsize=(38, 20))
-    sns.heatmap(data_matrix, cmap="YlGnBu")
-    plt.title('Heatmap of Block Sizes with Additional Dimensions', fontsize=28)
-    plt.xlabel('Time', fontsize=24)
-    plt.ylabel('Block Size (MB)', fontsize=24)
+def generate_heatmap_with_additional_dimensions(times, sizes, output_image_file_base):
+    data = pd.DataFrame({'Time': times, 'Size': sizes})
+    data['Hour'] = data['Time'].dt.hour
+    data['DayOfWeek'] = data['Time'].dt.dayofweek
+    heatmap_data = data.pivot_table(index='Hour', columns='DayOfWeek', values='Size', aggfunc='mean')
+    plt.figure(figsize=(20, 20))
+    sns.heatmap(heatmap_data, annot=True, cmap='YlGnBu')
+    plt.title('Heatmap of Block Sizes by Hour and Day of Week', fontsize=28)
+    plt.xlabel('Day of Week', fontsize=24)
+    plt.ylabel('Hour of Day', fontsize=24)
     plt.tight_layout()
-    plt.savefig(f"{output_image_file_base}_heatmap_with_dimensions.png")
-    print(f"{bash_color_light_green}Heatmap with additional dimensions generated successfully.{bash_color_reset}")
+    plt.savefig(f"{output_image_file_base}_heatmap.png")
+    print(f"{bash_color_light_green}Heatmap generated successfully.{bash_color_reset}")
 
 def generate_network_graph(times, sizes, output_image_file_base):
     G = nx.Graph()
-    for i in range(len(times) - 1):
-        G.add_edge(times[i], times[i+1], weight=sizes[i])
-    pos = nx.spring_layout(G)
+    for i in range(len(times)):
+        G.add_node(i, time=times[i], size=sizes[i])
+        if i > 0:
+            G.add_edge(i, i-1)
+    pos = {i: (times[i], sizes[i]) for i in range(len(times))}
     plt.figure(figsize=(38, 20))
-    nx.draw(G, pos, with_labels=True, node_size=50, node_color=py_color_blue, edge_color=sizes, edge_cmap=plt.cm.Blues)
-    plt.title('Network Graph of Blocks', fontsize=28)
+    nx.draw(G, pos, with_labels=False, node_size=50, node_color=py_color_teal, edge_color=py_color_dark_grey)
+    plt.title('Network Graph of Block Sizes Over Time', fontsize=28)
     plt.tight_layout()
     plt.savefig(f"{output_image_file_base}_network_graph.png")
     print(f"{bash_color_light_green}Network graph generated successfully.{bash_color_reset}")
 
-def generate_outlier_detection_plot(sizes, output_image_file_base):
+def generate_outlier_detection_plot(times, sizes, output_image_file_base):
+    data = pd.Series(sizes)
+    mean = data.mean()
+    std_dev = data.std()
+    outliers = data[(data - mean).abs() > 2 * std_dev]
     plt.figure(figsize=(38, 20))
-    plt.plot(sizes, color=py_color_blue)
-    outliers = [i for i, x in enumerate(sizes) if (x > np.mean(sizes) + 3 * np.std(sizes))]
-    plt.scatter(outliers, np.array(sizes)[outliers], color=py_color_red)
-    plt.title('Outlier Detection Plot', fontsize=28)
-    plt.xlabel('Index', fontsize=24)
+    plt.plot(times, sizes, label='Block Size', color=py_color_blue)
+    plt.scatter(outliers.index, outliers, color=py_color_red, label='Outliers')
+    plt.title('Outlier Detection in Block Sizes', fontsize=28)
+    plt.xlabel('Time', fontsize=24)
     plt.ylabel('Block Size (MB)', fontsize=24)
+    plt.legend(fontsize=24)
     plt.tight_layout()
     plt.savefig(f"{output_image_file_base}_outlier_detection_plot.png")
     print(f"{bash_color_light_green}Outlier detection plot generated successfully.{bash_color_reset}")
 
-def generate_segmented_bar_chart(sizes, output_image_file_base):
-    bins = [0, 1, 2, 3, 5, 10]
-    hist, edges = np.histogram(sizes, bins=bins)
+def generate_segmented_bar_chart(times, sizes, output_image_file_base):
+    categories = pd.cut(sizes, bins=[0, 1, 2, 3, 5, np.inf], right=False, labels=['<1MB', '1-2MB', '2-3MB', '3-5MB', '>5MB'])
+    category_counts = categories.value_counts().sort_index()
     plt.figure(figsize=(38, 20))
-    plt.bar(edges[:-1], hist, width=np.diff(edges), edgecolor="black", align="edge")
+    category_counts.plot(kind='bar', color=[py_color_green, py_color_yellow, py_color_orange, py_color_red, py_color_magenta])
     plt.title('Segmented Bar Chart of Block Sizes', fontsize=28)
     plt.xlabel('Block Size (MB)', fontsize=24)
     plt.ylabel('Frequency', fontsize=24)
@@ -321,47 +330,34 @@ def generate_segmented_bar_chart(sizes, output_image_file_base):
 
 def generate_graphs_and_table(data, output_image_file_base, lower_height, upper_height):
     block_data = data["block_data"]
-    total_blocks = len(block_data)
+    times = [parse_timestamp(block["time"]) for block in block_data]
+    sizes = [block["size"] for block in block_data]
 
     categories = {
-        "less_than_1MB": data.get("less_than_1MB", []),
-        "1MB_to_2MB": data.get("1MB_to_2MB", []),
-        "2MB_to_3MB": data.get("2MB_to_3MB", []),
-        "3MB_to_5MB": data.get("3MB_to_5MB", []),
-        "greater_than_5MB": data.get("greater_than_5MB", [])
+        "less_than_1MB": [block for block in block_data if block["size"] < 1],
+        "1MB_to_2MB": [block for block in block_data if 1 <= block["size"] < 2],
+        "2MB_to_3MB": [block for block in block_data if 2 <= block["size"] < 3],
+        "3MB_to_5MB": [block for block in block_data if 3 <= block["size"] < 5],
+        "greater_than_5MB": [block for block in block_data if block["size"] >= 5]
     }
 
-    total_blocks = sum(len(v) for v in categories.values())
-
-    # Print table to console
-    print(f"{bash_color_teal}\nNumber of blocks in each group for block heights {lower_height} to {upper_height}:{bash_color_reset}")
-    headers = [f"{bash_color_teal}Block Size Range{bash_color_reset}", f"{bash_color_teal}Count{bash_color_reset}", f"{bash_color_teal}Percentage{bash_color_reset}", f"{bash_color_teal}Average Size (MB){bash_color_reset}", f"{bash_color_teal}Min Size (MB){bash_color_reset}", f"{bash_color_teal}Max Size (MB){bash_color_reset}"]
-
+    total_blocks = len(block_data)
     table = [
         [f"{bash_color_green}Less than 1MB{bash_color_reset}", f"{bash_color_green}{len(categories['less_than_1MB']):,}{bash_color_reset}", f"{bash_color_green}{len(categories['less_than_1MB']) / total_blocks * 100:.2f}%{bash_color_reset}", f"{bash_color_green}{calculate_avg([b['size'] for b in categories['less_than_1MB']]):.2f}{bash_color_reset}", f"{bash_color_green}{min([b['size'] for b in categories['less_than_1MB']], default=0):.2f}{bash_color_reset}", f"{bash_color_green}{max([b['size'] for b in categories['less_than_1MB']], default=0):.2f}{bash_color_reset}"],
-        [f"{bash_color_yellow}1MB to 2MB{bash_color_reset}", f"{bash_color_yellow}{len(categories['1MB_to_2MB']):,}{bash_color_reset}", f"{bash_color_yellow}{len(categories['1MB_to_2MB']) / total_blocks * 100:.2f}%{bash_color_reset}", f"{bash_color_yellow}{calculate_avg([b['size'] for b in categories['1MB_to_2MB']])::.2f}{bash_color_reset}", f"{bash_color_yellow}{min([b['size'] for b in categories['1MB_to_2MB']], default=0):.2f}{bash_color_reset}", f"{bash_color_yellow}{max([b['size'] for b in categories['1MB_to_2MB']], default=0):.2f}{bash_color_reset}"],
-        [f"{bash_color_orange}2MB to 3MB{bash_color_reset}", f"{bash_color_orange}{len(categories['2MB_to_3MB']):,}{bash_color_reset}", f"{bash_color_orange}{len(categories['2MB_to_3MB']) / total_blocks * 100:.2f}%{bash_color_reset}", f"{bash_color_orange}{calculate_avg([b['size'] for b in categories['2MB_to_3MB']])::.2f}{bash_color_reset}", f"{bash_color_orange}{min([b['size'] for b in categories['2MB_to_3MB']], default=0):.2f}{bash_color_reset}", f"{bash_color_orange}{max([b['size'] for b in categories['2MB_to_3MB']], default=0):.2f}{bash_color_reset}"],
-        [f"{bash_color_red}3MB to 5MB{bash_color_reset}", f"{bash_color_red}{len(categories['3MB_to_5MB']):,}{bash_color_reset}", f"{bash_color_red}{len(categories['3MB_to_5MB']) / total_blocks * 100:.2f}%{bash_color_reset}", f"{bash_color_red}{calculate_avg([b['size'] for b in categories['3MB_to_5MB']])::.2f}{bash_color_reset}", f"{bash_color_red}{min([b['size'] for b in categories['3MB_to_5MB']], default=0):.2f}{bash_color_reset}", f"{bash_color_red}{max([b['size'] for b in categories['3MB_to_5MB']], default=0)::.2f}{bash_color_reset}"],
-        [f"{bash_color_magenta}Greater than 5MB{bash_color_reset}", f"{bash_color_magenta}{len(categories['greater_than_5MB']):,}{bash_color_reset}", f"{bash_color_magenta}{len(categories['greater_than_5MB']) / total_blocks * 100:.2f}%{bash_color_reset}", f"{bash_color_magenta}{calculate_avg([b['size'] for b in categories['greater_than_5MB']])::.2f}{bash_color_reset}", f"{bash_color_magenta}{min([b['size'] for b in categories['greater_than_5MB']], default=0)::.2f}{bash_color_reset}", f"{bash_color_magenta}{max([b['size'] for b in categories['greater_than_5MB']], default=0)::.2f}{bash_color_reset}"]
+        [f"{bash_color_yellow}1MB to 2MB{bash_color_reset}", f"{bash_color_yellow}{len(categories['1MB_to_2MB']):,}{bash_color_reset}", f"{bash_color_yellow}{len(categories['1MB_to_2MB']) / total_blocks * 100:.2f}%{bash_color_reset}", f"{bash_color_yellow}{calculate_avg([b['size'] for b in categories['1MB_to_2MB']])::.2f}{bash_color_reset}", f"{bash_color_yellow}{min([b['size'] for b in categories['1MB_to_2MB']], default=0):.2f}{bash_color_reset}", f"{bash_color_yellow}{max([b['size'] for b in categories['1MB_to_2MB']], default=0)::.2f}{bash_color_reset}"],
+        [f"{bash_color_orange}2MB to 3MB{bash_color_reset}", f"{bash_color_orange}{len(categories['2MB_to_3MB']):,}{bash_color_reset}", f"{bash_color_orange}{len(categories['2MB_to_3MB']) / total_blocks * 100:.2f}%{bash_color_reset}", f"{bash_color_orange}{calculate_avg([b['size'] for b in categories['2MB_to_3MB']]):.2f}{bash_color_reset}", f"{bash_color_orange}{min([b['size'] for b in categories['2MB_to_3MB']], default=0):.2f}{bash_color_reset}", f"{bash_color_orange}{max([b['size'] for b in categories['2MB_to_3MB']], default=0)::.2f}{bash_color_reset}"],
+        [f"{bash_color_red}3MB to 5MB{bash_color_reset}", f"{bash_color_red}{len(categories['3MB_to_5MB']):,}{bash_color_reset}", f"{bash_color_red}{len(categories['3MB_to_5MB']) / total_blocks * 100:.2f}%{bash_color_reset}", f"{bash_color_red}{calculate_avg([b['size'] for b in categories['3MB_to_5MB']]):.2f}{bash_color_reset}", f"{bash_color_red}{min([b['size'] for b in categories['3MB_to_5MB']], default=0):.2f}{bash_color_reset}", f"{bash_color_red}{max([b['size'] for b in categories['3MB_to_5MB']], default=0):.2f}{bash_color_reset}"],
+        [f"{bash_color_magenta}Greater than 5MB{bash_color_reset}", f"{bash_color_magenta}{len(categories['greater_than_5MB']):,}{bash_color_reset}", f"{bash_color_magenta}{len(categories['greater_than_5MB']) / total_blocks * 100:.2f}%{bash_color_reset}", f"{bash_color_magenta}{calculate_avg([b['size'] for b in categories['greater_than_5MB']]):.2f}{bash_color_reset}", f"{bash_color_magenta}{min([b['size'] for b in categories['greater_than_5MB']], default=0):.2f}{bash_color_reset}", f"{bash_color_magenta}{max([b['size'] for b in categories['greater_than_5MB']], default=0):.2f}{bash_color_reset}"]
     ]
 
-    print(tabulate(table, headers=headers, tablefmt="grid"))
-
-    times = [block["time"] for block in block_data]
-    sizes = [block["size"] for block in block_data]
-    colors = [
-        py_color_green if block["size"] < 1 else
-        py_color_yellow if 1 <= block["size"] < 2 else
-        py_color_orange if 2 <= block["size"] < 3 else
-        py_color_red if 3 <= block["size"] < 5 else
-        py_color_magenta
-        for block in block_data
-    ]
+    headers = ["Block Size Range", "Count", "Percentage", "Average Size (MB)", "Min Size (MB)", "Max Size (MB)"]
+    table_str = tabulate(table, headers, tablefmt="grid")
+    print(f"\nNumber of blocks in each group for block heights {lower_height} to {upper_height}:\n{table_str}")
 
     print(f"{bash_color_light_blue}Generating scatter plot...{bash_color_reset}")
-    generate_scatter_plot(times, sizes, colors, output_image_file_base, lower_height, upper_height)
+    generate_scatter_plot(times, sizes, [py_color_green if size < 1 else py_color_yellow if size < 2 else py_color_orange if size < 3 else py_color_red if size < 5 else py_color_magenta for size in sizes], output_image_file_base, lower_height, upper_height)
     print(f"{bash_color_light_blue}Generating enhanced scatter plot...{bash_color_reset}")
-    generate_enhanced_scatter_plot(times, sizes, colors, output_image_file_base, lower_height, upper_height)
+    generate_enhanced_scatter_plot(times, sizes, [py_color_green if size < 1 else py_color_yellow if size < 2 else py_color_orange if size < 3 else py_color_red if size < 5 else py_color_magenta for size in sizes], output_image_file_base, lower_height, upper_height)
     print(f"{bash_color_light_blue}Generating cumulative sum plot...{bash_color_reset}")
     generate_cumulative_sum_plot(times, sizes, output_image_file_base)
     print(f"{bash_color_light_blue}Generating rolling average plot...{bash_color_reset}")
@@ -375,13 +371,11 @@ def generate_graphs_and_table(data, output_image_file_base, lower_height, upper_
     print(f"{bash_color_light_blue}Generating lag plot...{bash_color_reset}")
     generate_lag_plot(sizes, output_image_file_base)
     print(f"{bash_color_light_blue}Generating heatmap with additional dimensions...{bash_color_reset}")
-    generate_heatmap_with_dimensions(times, sizes, output_image_file_base)
+    generate_heatmap_with_additional_dimensions(times, sizes, output_image_file_base)
     print(f"{bash_color_light_blue}Generating network graph...{bash_color_reset}")
     generate_network_graph(times, sizes, output_image_file_base)
     print(f"{bash_color_light_blue}Generating outlier detection plot...{bash_color_reset}")
-    generate_outlier_detection_plot(sizes, output_image_file_base)
-    print(f"{bash_color_light_blue}Generating segmented bar chart...{bash_color_reset}")
-    generate_segmented_bar_chart(sizes, output_image_file_base)
+    generate_outlier_detection_plot(times, sizes, output_image_file_base)
 
 def main():
     if len(sys.argv) < 8:
@@ -396,6 +390,13 @@ def main():
     endpoint_url = sys.argv[6]
     output_json_file = sys.argv[7]
     output_image_file_base = output_json_file.replace('.json', '')
+
+    # If a JSON file is specified, skip fetching and directly process the JSON file
+    if os.path.exists(output_json_file):
+        with open(output_json_file, 'r') as f:
+            data = json.load(f)
+        generate_graphs_and_table(data, output_image_file_base, lower_height, upper_height)
+        return
 
     global executor
     executor = ThreadPoolExecutor(max_workers=num_workers)
