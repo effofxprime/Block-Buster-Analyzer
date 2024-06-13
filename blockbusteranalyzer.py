@@ -167,6 +167,7 @@ def categorize_block(block, categories):
 
 # New chart generation functions
 def generate_cumulative_sum_plot(times, sizes, output_image_file_base):
+    print("Generating cumulative sum plot...")
     cumulative_sum = np.cumsum(sizes)
     plt.figure(figsize=(38, 20))
     plt.plot(times, cumulative_sum, color=py_color_blue)
@@ -179,6 +180,7 @@ def generate_cumulative_sum_plot(times, sizes, output_image_file_base):
     print(f"{bash_color_light_green}Cumulative sum plot generated successfully.{bash_color_reset}")
 
 def generate_rolling_average_plot(times, sizes, output_image_file_base):
+    print("Generating rolling average plot...")
     rolling_avg = pd.Series(sizes).rolling(window=100).mean()
     plt.figure(figsize=(38, 20))
     plt.plot(times, rolling_avg, color=py_color_green)
@@ -191,6 +193,7 @@ def generate_rolling_average_plot(times, sizes, output_image_file_base):
     print(f"{bash_color_light_green}Rolling average plot generated successfully.{bash_color_reset}")
 
 def generate_violin_plot(sizes, output_image_file_base):
+    print("Generating violin plot...")
     plt.figure(figsize=(38, 20))
     sns.violinplot(data=sizes)
     plt.title('Violin Plot of Block Sizes', fontsize=28)
@@ -201,6 +204,7 @@ def generate_violin_plot(sizes, output_image_file_base):
     print(f"{bash_color_light_green}Violin plot generated successfully.{bash_color_reset}")
 
 def generate_autocorrelation_plot(sizes, output_image_file_base):
+    print("Generating autocorrelation plot...")
     pd.plotting.autocorrelation_plot(pd.Series(sizes))
     plt.title('Autocorrelation of Block Sizes', fontsize=28)
     plt.xlabel('Lag', fontsize=24)
@@ -210,6 +214,7 @@ def generate_autocorrelation_plot(sizes, output_image_file_base):
     print(f"{bash_color_light_green}Autocorrelation plot generated successfully.{bash_color_reset}")
 
 def generate_seasonal_decomposition_plot(times, sizes, output_image_file_base):
+    print("Generating seasonal decomposition plot...")
     result = seasonal_decompose(pd.Series(sizes, index=times), model='additive', period=365)
     fig = result.plot()
     fig.set_size_inches(38, 20)
@@ -218,6 +223,7 @@ def generate_seasonal_decomposition_plot(times, sizes, output_image_file_base):
     print(f"{bash_color_light_green}Seasonal decomposition plot generated successfully.{bash_color_reset}")
 
 def generate_lag_plot(sizes, output_image_file_base):
+    print("Generating lag plot...")
     pd.plotting.lag_plot(pd.Series(sizes))
     plt.title('Lag Plot of Block Sizes', fontsize=28)
     plt.xlabel('Previous Size', fontsize=24)
@@ -227,6 +233,7 @@ def generate_lag_plot(sizes, output_image_file_base):
     print(f"{bash_color_light_green}Lag plot generated successfully.{bash_color_reset}")
 
 def generate_heatmap_with_dimensions(times, sizes, output_image_file_base):
+    print("Generating heatmap with additional dimensions...")
     data_matrix = np.column_stack([times, sizes])
     plt.figure(figsize=(38, 20))
     sns.heatmap(data_matrix, cmap="YlGnBu")
@@ -238,6 +245,7 @@ def generate_heatmap_with_dimensions(times, sizes, output_image_file_base):
     print(f"{bash_color_light_green}Heatmap with additional dimensions generated successfully.{bash_color_reset}")
 
 def generate_network_graph(times, sizes, output_image_file_base):
+    print("Generating network graph...")
     G = nx.Graph()
     for i in range(len(times) - 1):
         G.add_edge(times[i], times[i+1], weight=sizes[i])
@@ -250,6 +258,7 @@ def generate_network_graph(times, sizes, output_image_file_base):
     print(f"{bash_color_light_green}Network graph generated successfully.{bash_color_reset}")
 
 def generate_outlier_detection_plot(sizes, output_image_file_base):
+    print("Generating outlier detection plot...")
     plt.figure(figsize=(38, 20))
     plt.plot(sizes, color=py_color_blue)
     outliers = [i for i, x in enumerate(sizes) if (x > np.mean(sizes) + 3 * np.std(sizes))]
@@ -262,6 +271,7 @@ def generate_outlier_detection_plot(sizes, output_image_file_base):
     print(f"{bash_color_light_green}Outlier detection plot generated successfully.{bash_color_reset}")
 
 def generate_segmented_bar_chart(sizes, output_image_file_base):
+    print("Generating segmented bar chart...")
     bins = [0, 1, 2, 3, 5, 10]
     hist, edges = np.histogram(sizes, bins=bins)
     plt.figure(figsize=(38, 20))
@@ -272,6 +282,54 @@ def generate_segmented_bar_chart(sizes, output_image_file_base):
     plt.tight_layout()
     plt.savefig(f"{output_image_file_base}_segmented_bar_chart.png")
     print(f"{bash_color_light_green}Segmented bar chart generated successfully.{bash_color_reset}")
+
+def generate_scatter_plot(times, sizes, colors, output_image_file_base, lower_height, upper_height):
+    print("Generating scatter plot...")
+    fig, ax = plt.subplots(figsize=(38, 20))
+    ax.scatter(times, sizes, color=colors)
+    ax.set_title(f'Block Size Over Time (Scatter Plot)\nBlock Heights {lower_height} to {upper_height}', fontsize=28)
+    ax.set_xlabel('Time', fontsize=24)
+    ax.set_ylabel('Block Size (MB)', fontsize=24)
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+    ax.xaxis.set_major_locator(mdates.DayLocator(interval=30))
+    ax.xaxis.set_minor_locator(mdates.DayLocator(interval=1))
+    ax.tick_params(axis='x', labelrotation=45, labelsize=20)
+    ax.tick_params(axis='y', labelsize=20)
+    legend_patches = [
+        plt.Line2D([0], [0], marker='o', color='w', label='Less than 1MB', markerfacecolor=py_color_green, markersize=10),
+        plt.Line2D([0], [0], marker='o', color='w', label='1MB to 2MB', markerfacecolor=py_color_yellow, markersize=10),
+        plt.Line2D([0], [0], marker='o', color='w', label='2MB to 3MB', markerfacecolor=py_color_orange, markersize=10),
+        plt.Line2D([0], [0], marker='o', color='w', label='3MB to 5MB', markerfacecolor=py_color_red, markersize=10),
+        plt.Line2D([0], [0], marker='o', color='w', label='Greater than 5MB', markerfacecolor=py_color_magenta, markersize=10)
+    ]
+    ax.legend(handles=legend_patches, loc='upper right', fontsize=20)
+    plt.tight_layout()
+    plt.savefig(f"{output_image_file_base}_scatter_plot.png")
+    print(f"{bash_color_light_green}Scatter plot generated successfully.{bash_color_reset}")
+
+def generate_enhanced_scatter_plot(times, sizes, colors, output_image_file_base, lower_height, upper_height):
+    print("Generating enhanced scatter plot...")
+    fig, ax = plt.subplots(figsize=(38, 20))
+    ax.scatter(times, sizes, color=colors, alpha=0.6, edgecolors='w', linewidth=0.5)
+    ax.set_title(f'Enhanced Block Size Over Time (Scatter Plot)\nBlock Heights {lower_height} to {upper_height}', fontsize=28)
+    ax.set_xlabel('Time', fontsize=24)
+    ax.set_ylabel('Block Size (MB)', fontsize=24)
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+    ax.xaxis.set_major_locator(mdates.DayLocator(interval=30))
+    ax.xaxis.set_minor_locator(mdates.DayLocator(interval=1))
+    ax.tick_params(axis='x', labelrotation=45, labelsize=20)
+    ax.tick_params(axis='y', labelsize=20)
+    legend_patches = [
+        plt.Line2D([0], [0], marker='o', color='w', label='Less than 1MB', markerfacecolor=py_color_green, markersize=10),
+        plt.Line2D([0], [0], marker='o', color='w', label='1MB to 2MB', markerfacecolor=py_color_yellow, markersize=10),
+        plt.Line2D([0], [0], marker='o', color='w', label='2MB to 3MB', markerfacecolor=py_color_orange, markersize=10),
+        plt.Line2D([0], [0], marker='o', color='w', label='3MB to 5MB', markerfacecolor=py_color_red, markersize=10),
+        plt.Line2D([0], [0], marker='o', color='w', label='Greater than 5MB', markerfacecolor=py_color_magenta, markersize=10)
+    ]
+    ax.legend(handles=legend_patches, loc='upper right', fontsize=20)
+    plt.tight_layout()
+    plt.savefig(f"{output_image_file_base}_enhanced_scatter_plot.png")
+    print(f"{bash_color_light_green}Enhanced scatter plot generated successfully.{bash_color_reset}")
 
 def generate_graphs_and_table(data, output_image_file_base, lower_height, upper_height):
     block_data = data["block_data"]
@@ -287,16 +345,20 @@ def generate_graphs_and_table(data, output_image_file_base, lower_height, upper_
 
     total_blocks = sum(len(v) for v in categories.values())
 
-    # Print table to console using tabulate
-    headers = ["Block Size Range", "Count", "Percentage", "Average Size (MB)", "Min Size (MB)", "Max Size (MB)"]
+    # Print table to console
+    print(f"{bash_color_teal}\nNumber of blocks in each group for block heights {lower_height} to {upper_height}:{bash_color_reset}")
+    headers = [f"{bash_color_teal}Block Size Range{bash_color_reset}", f"{bash_color_teal}Count{bash_color_reset}", f"{bash_color_teal}Percentage{bash_color_reset}", f"{bash_color_teal}Average Size (MB){bash_color_reset}", f"{bash_color_teal}Min Size (MB){bash_color_reset}", f"{bash_color_teal}Max Size (MB){bash_color_reset}"]
     table = [
-        ["Less than 1MB", len(categories['less_than_1MB']), f"{len(categories['less_than_1MB']) / total_blocks * 100:.2f}%", calculate_avg([b['size'] for b in categories['less_than_1MB']]), min([b['size'] for b in categories['less_than_1MB']], default=0), max([b['size'] for b in categories['less_than_1MB']], default=0)],
-        ["1MB to 2MB", len(categories['1MB_to_2MB']), f"{len(categories['1MB_to_2MB']) / total_blocks * 100:.2f}%", calculate_avg([b['size'] for b in categories['1MB_to_2MB']]), min([b['size'] for b in categories['1MB_to_2MB']], default=0), max([b['size'] for b in categories['1MB_to_2MB']], default=0)],
-        ["2MB to 3MB", len(categories['2MB_to_3MB']), f"{len(categories['2MB_to_3MB']) / total_blocks * 100:.2f}%", calculate_avg([b['size'] for b in categories['2MB_to_3MB']]), min([b['size'] for b in categories['2MB_to_3MB']], default=0), max([b['size'] for b in categories['2MB_to_3MB']], default=0)],
-        ["3MB to 5MB", len(categories['3MB_to_5MB']), f"{len(categories['3MB_to_5MB']) / total_blocks * 100:.2f}%", calculate_avg([b['size'] for b in categories['3MB_to_5MB']]), min([b['size'] for b in categories['3MB_to_5MB']], default=0), max([b['size'] for b in categories['3MB_to_5MB']], default=0)],
-        ["Greater than 5MB", len(categories['greater_than_5MB']), f"{len(categories['greater_than_5MB']) / total_blocks * 100:.2f}%", calculate_avg([b['size'] for b in categories['greater_than_5MB']]), min([b['size'] for b in categories['greater_than_5MB']], default=0), max([b['size'] for b in categories['greater_than_5MB']], default=0)]
+        [f"{bash_color_green}Less than 1MB{bash_color_reset}", f"{bash_color_green}{len(categories['less_than_1MB'])}{bash_color_reset}", f"{bash_color_green}{len(categories['less_than_1MB']) / total_blocks * 100:.2f}%{bash_color_reset}", f"{bash_color_green}{calculate_avg([b['size'] for b in categories['less_than_1MB']]):.2f}{bash_color_reset}", f"{bash_color_green}{min([b['size'] for b in categories['less_than_1MB']], default=0):.2f}{bash_color_reset}", f"{bash_color_green}{max([b['size'] for b in categories['less_than_1MB']], default=0):.2f}{bash_color_reset}"],
+        [f"{bash_color_yellow}1MB to 2MB{bash_color_reset}", f"{bash_color_yellow}{len(categories['1MB_to_2MB'])}{bash_color_reset}", f"{bash_color_yellow}{len(categories['1MB_to_2MB']) / total_blocks * 100:.2f}%{bash_color_reset}", f"{bash_color_yellow}{calculate_avg([b['size'] for b in categories['1MB_to_2MB']]):.2f}{bash_color_reset}", f"{bash_color_yellow}{min([b['size'] for b in categories['1MB_to_2MB']], default=0):.2f}{bash_color_reset}", f"{bash_color_yellow}{max([b['size'] for b in categories['1MB_to_2MB']], default=0):.2f}{bash_color_reset}"],
+        [f"{bash_color_orange}2MB to 3MB{bash_color_reset}", f"{bash_color_orange}{len(categories['2MB_to_3MB'])}{bash_color_reset}", f"{bash_color_orange}{len(categories['2MB_to_3MB']) / total_blocks * 100:.2f}%{bash_color_reset}", f"{bash_color_orange}{calculate_avg([b['size'] for b in categories['2MB_to_3MB']]):.2f}{bash_color_reset}", f"{bash_color_orange}{min([b['size'] for b in categories['2MB_to_3MB']], default=0):.2f}{bash_color_reset}", f"{bash_color_orange}{max([b['size'] for b in categories['2MB_to_3MB']], default=0):.2f}{bash_color_reset}"],
+        [f"{bash_color_red}3MB to 5MB{bash_color_reset}", f"{bash_color_red}{len(categories['3MB_to_5MB'])}{bash_color_reset}", f"{bash_color_red}{len(categories['3MB_to_5MB']) / total_blocks * 100:.2f}%{bash_color_reset}", f"{bash_color_red}{calculate_avg([b['size'] for b in categories['3MB_to_5MB']]):.2f}{bash_color_reset}", f"{bash_color_red}{min([b['size'] for b in categories['3MB_to_5MB']], default=0):.2f}{bash_color_reset}", f"{bash_color_red}{max([b['size'] for b in categories['3MB_to_5MB']], default=0):.2f}{bash_color_reset}"],
+        [f"{bash_color_magenta}Greater than 5MB{bash_color_reset}", f"{bash_color_magenta}{len(categories['greater_than_5MB'])}{bash_color_reset}", f"{bash_color_magenta}{len(categories['greater_than_5MB']) / total_blocks * 100:.2f}%{bash_color_reset}", f"{bash_color_magenta}{calculate_avg([b['size'] for b in categories['greater_than_5MB']]): .2f}{bash_color_reset}", f"{bash_color_magenta}{min([b['size'] for b in categories['greater_than_5MB']], default=0):.2f}{bash_color_reset}", f"{bash_color_magenta}{max([b['size'] for b in categories['greater_than_5MB']], default=0):.2f}{bash_color_reset}"]
     ]
-    print(tabulate(table, headers=headers, tablefmt="pretty"))
+
+    table_str = tabulate(table, headers=headers, tablefmt="pretty")
+    table_str = table_str.replace("+", f"{bash_color_dark_grey}+{bash_color_reset}").replace("-", f"{bash_color_dark_grey}-{bash_color_reset}").replace("|", f"{bash_color_dark_grey}|{bash_color_reset}")
+    print(table_str)
 
     times = [datetime.fromisoformat(b['time']) for b in block_data]
     sizes = [b['size'] for b in block_data]
@@ -315,6 +377,8 @@ def generate_graphs_and_table(data, output_image_file_base, lower_height, upper_
 
     with ThreadPoolExecutor(max_workers=10) as executor:
         futures = [
+            run_in_executor(generate_scatter_plot, times, sizes, colors, output_image_file_base, lower_height, upper_height),
+            run_in_executor(generate_enhanced_scatter_plot, times, sizes, colors, output_image_file_base, lower_height, upper_height),
             run_in_executor(generate_cumulative_sum_plot, times, sizes, output_image_file_base),
             run_in_executor(generate_rolling_average_plot, times, sizes, output_image_file_base),
             run_in_executor(generate_violin_plot, sizes, output_image_file_base),
@@ -331,6 +395,14 @@ def generate_graphs_and_table(data, output_image_file_base, lower_height, upper_
                 future.result()
             except Exception as exc:
                 print(f"{bash_color_red}Generated an exception: {exc}{bash_color_reset}")
+
+def print_table(headers, rows):
+    col_widths = [max(len(str(cell)) for cell in col) for col in zip(headers, *rows)]
+    separator = f"{bash_color_dark_grey}|{bash_color_reset}".join(['-' * (width + 2) for width in col_widths])
+    print(f"{'|'.join(f' {header.ljust(width)} ' for header, width in zip(headers, col_widths))}")
+    print(separator)
+    for row in rows:
+        print(f"{'|'.join(f' {cell.ljust(width)} ' for cell, width in zip(row, col_widths))}")
 
 def main(json_workers, fetch_workers, lower_height, upper_height, endpoint_type, endpoint_urls, json_file=None):
     global executor
