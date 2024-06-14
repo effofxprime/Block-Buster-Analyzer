@@ -17,14 +17,16 @@ import signal
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from datetime import datetime
+import matplotlib.dates as mdates
+from matplotlib.ticker import MaxNLocator
 import seaborn as sns
 import networkx as nx
 import threading
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from tabulate import tabulate
 from statsmodels.tsa.seasonal import seasonal_decompose
-from datetime import datetime
+from tabulate import tabulate
 
 # Define colors for console output
 bash_color_reset = "\033[0m"
@@ -61,6 +63,9 @@ def signal_handler(sig, frame):
     sys.exit(0)
 
 signal.signal(signal.SIGINT, signal_handler)
+
+def calculate_avg(sizes):
+    return sum(sizes) / len(sizes) if sizes else 0
 
 def check_endpoint(endpoint_type, endpoint_url):
     # Placeholder function to simulate endpoint checking
@@ -115,6 +120,10 @@ def generate_scatter_plot(times, sizes, colors, output_image_file_base, lower_he
     ax.set_title(f'Block Size Over Time (Scatter Plot)\nBlock Heights {lower_height} to {upper_height}', fontsize=28)
     ax.set_xlabel('Time', fontsize=24)
     ax.set_ylabel('Block Size (MB)', fontsize=24)
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+    ax.xaxis.set_major_locator(mdates.DayLocator(interval=30))
+    ax.xaxis.set_minor_locator(mdates.DayLocator(interval=1))
+    ax.xaxis.set_major_locator(MaxNLocator(nbins=10))
     ax.tick_params(axis='x', labelrotation=45, labelsize=20)
     ax.tick_params(axis='y', labelsize=20)
     legend_patches = [
@@ -136,6 +145,10 @@ def generate_enhanced_scatter_plot(times, sizes, colors, output_image_file_base,
     ax.set_title(f'Enhanced Block Size Over Time (Scatter Plot)\nBlock Heights {lower_height} to {upper_height}', fontsize=28)
     ax.set_xlabel('Time', fontsize=24)
     ax.set_ylabel('Block Size (MB)', fontsize=24)
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+    ax.xaxis.set_major_locator(mdates.DayLocator(interval=30))
+    ax.xaxis.set_minor_locator(mdates.DayLocator(interval=1))
+    ax.xaxis.set_major_locator(MaxNLocator(nbins=10))
     ax.tick_params(axis='x', labelrotation=45, labelsize=20)
     ax.tick_params(axis='y', labelsize=20)
     legend_patches = [
@@ -283,15 +296,12 @@ def generate_segmented_bar_chart(times, sizes, output_image_file_base):
 
 def generate_graphs_and_table(block_data, output_image_file_base, lower_height, upper_height):
     categories = {
-        "less_than_1MB": [],
-        "1MB_to_2MB": [],
-        "2MB_to_3MB": [],
-        "3MB_to_5MB": [],
-        "greater_than_5MB": []
+        "less_than_1MB": [block for block in block_data if block["size"] < 1],
+        "1MB_to_2MB": [block for block in block_data if 1 <= block["size"] < 2],
+        "2MB_to_3MB": [block for block in block_data if 2 <= block["size"] < 3],
+        "3MB_to_5MB": [block for block in block_data if 3 <= block["size"] < 5],
+        "greater_than_5MB": [block for block in block_data if block["size"] >= 5]
     }
-
-    for block in block_data:
-        categorize_block(block, categories)
 
     total_blocks = len(block_data)
     table = [
@@ -302,8 +312,9 @@ def generate_graphs_and_table(block_data, output_image_file_base, lower_height, 
         [f"{bash_color_magenta}Greater than 5MB{bash_color_reset}", f"{bash_color_magenta}{len(categories['greater_than_5MB']):,}{bash_color_reset}", f"{bash_color_magenta}{len(categories['greater_than_5MB']) / total_blocks * 100:.2f}%{bash_color_reset}", f"{bash_color_magenta}{calculate_avg([b['size'] for b in categories['greater_than_5MB']]):.2f}{bash_color_reset}", f"{bash_color_magenta}{min([b['size'] for b in categories['greater_than_5MB']], default=0):.2f}{bash_color_reset}", f"{bash_color_magenta}{max([b['size'] for b in categories['greater_than_5MB']], default=0):.2f}{bash_color_reset}"]
     ]
 
-    print(f"\nNumber of blocks in each group for block heights {lower_height} to {upper_height}:")
-    print(tabulate(table, headers=["Block Size Range", "Count", "Percentage", "Average Size (MB)", "Min Size (MB)", "Max Size (MB)"], tablefmt="grid"))
+    headers = [f"{bash_color_teal}Block Size Range{bash_color_reset}", f"{bash_color_teal}Count{bash_color_reset}", f"{bash_color_teal}Percentage{bash_color_reset}", f"{bash_color_teal}Average Size (MB){bash_color_reset}", f"{bash_color_teal}Min Size (MB){bash_color_reset}", f"{bash_color_teal}Max Size (MB){bash_color_reset}"]
+    table_str = tabulate(table, headers, tablefmt="grid")
+    print(f"\n{bash_color_light_blue}Number of blocks in each group for block heights {lower_height} to {upper_height}:{bash_color_reset}\n{table_str}")
 
     times = [parse_timestamp(block["time"]) for block in block_data]
     sizes = [block["size"] for block in block_data]
@@ -317,44 +328,33 @@ def generate_graphs_and_table(block_data, output_image_file_base, lower_height, 
     ]
 
     # Generate scatter and enhanced scatter plots first
-    print(f"{bash_color_light_blue}Generating scatter plot...{bash_color_reset}")
     generate_scatter_plot(times, sizes, colors, output_image_file_base, lower_height, upper_height)
-    print(f"{bash_color_light_blue}Generating enhanced scatter plot...{bash_color_reset}")
     generate_enhanced_scatter_plot(times, sizes, colors, output_image_file_base, lower_height, upper_height)
-    print(f"{bash_color_light_blue}Generating cumulative sum plot...{bash_color_reset}")
+
+    # Generate remaining plots
     generate_cumulative_sum_plot(times, sizes, output_image_file_base)
-    print(f"{bash_color_light_blue}Generating rolling average plot...{bash_color_reset}")
     generate_rolling_average_plot(times, sizes, output_image_file_base)
-    print(f"{bash_color_light_blue}Generating violin plot...{bash_color_reset}")
     generate_violin_plot(sizes, output_image_file_base)
-    print(f"{bash_color_light_blue}Generating autocorrelation plot...{bash_color_reset}")
     generate_autocorrelation_plot(sizes, output_image_file_base)
-    print(f"{bash_color_light_blue}Generating seasonal decomposition plot...{bash_color_reset}")
     generate_seasonal_decomposition_plot(times, sizes, output_image_file_base)
-    print(f"{bash_color_light_blue}Generating lag plot...{bash_color_reset}")
     generate_lag_plot(sizes, output_image_file_base)
-    print(f"{bash_color_light_blue}Generating heatmap with additional dimensions...{bash_color_reset}")
     generate_heatmap_with_additional_dimensions(times, sizes, output_image_file_base)
-    print(f"{bash_color_light_blue}Generating network graph...{bash_color_reset}")
     generate_network_graph(times, sizes, output_image_file_base)
-    print(f"{bash_color_light_blue}Generating outlier detection plot...{bash_color_reset}")
     generate_outlier_detection_plot(times, sizes, output_image_file_base)
-    print(f"{bash_color_light_blue}Generating segmented bar chart...{bash_color_reset}")
     generate_segmented_bar_chart(times, sizes, output_image_file_base)
 
 def main():
-    args = sys.argv[1:]
-    if len(args) != 7:
+    if len(sys.argv) != 7:
         print(f"Usage: {sys.argv[0]} <block_interval> <num_threads> <lower_height> <upper_height> <connection_type> <endpoint_url> <json_file_path>")
         sys.exit(1)
 
-    block_interval = int(args[0])
-    num_threads = int(args[1])
-    lower_height = int(args[2])
-    upper_height = int(args[3])
-    connection_type = args[4]
-    endpoint_url = args[5]
-    json_file_path = args[6]
+    block_interval = int(sys.argv[1])
+    num_threads = int(sys.argv[2])
+    lower_height = int(sys.argv[3])
+    upper_height = int(sys.argv[4])
+    connection_type = sys.argv[5]
+    endpoint_url = sys.argv[6]
+    json_file_path = sys.argv[7]
     output_image_file_base = os.path.splitext(json_file_path)[0]
 
     # If a JSON file is specified, skip fetching and directly process the JSON file
@@ -372,7 +372,7 @@ def main():
     # Find the lowest available height if necessary
     lowest_height = find_lowest_height(connection_type, endpoint_url)
     if lower_height < lowest_height:
-        print(f"Lower height {lower_height} is less than the lowest available height {lowest_height}. Adjusting to {lowest_height}.")
+        print(f"{bash_color_red}Lower height {lower_height} is less than the lowest available height {lowest_height}. Adjusting to {lowest_height}.{bash_color_reset}")
         lower_height = lowest_height
 
     global executor
@@ -387,11 +387,14 @@ def main():
         }
         for future in as_completed(futures):
             if shutdown_event.is_set():
-                break
+                print(f"{bash_color_red}Shutdown event detected. Exiting...{bash_color_reset}")
+                sys.exit(0)
             result = future.result()
             if result:
                 block_data.append({"height": result[0], "size": result[1], "time": result[2]})
             pbar.update(1)
+
+    executor.shutdown(wait=True)
 
     if shutdown_event.is_set():
         print(f"{bash_color_red}Shutdown event detected. Exiting...{bash_color_reset}")
@@ -412,11 +415,13 @@ def main():
 
     data = {
         "block_data": block_data,
-        "less_than_1MB": categories["less_than_1MB"],
-        "1MB_to_2MB": categories["1MB_to_2MB"],
-        "2MB_to_3MB": categories["2MB_to_3MB"],
-        "3MB_to_5MB": categories["3MB_to_5MB"],
-        "greater_than_5MB": categories["greater_than_5MB"]
+        "categories": {
+            "less_than_1MB": categories["less_than_1MB"],
+            "1MB_to_2MB": categories["1MB_to_2MB"],
+            "2MB_to_3MB": categories["2MB_to_3MB"],
+            "3MB_to_5MB": categories["3MB_to_5MB"],
+            "greater_than_5MB": categories["greater_than_5MB"]
+        }
     }
 
     # Save data to JSON file
