@@ -22,8 +22,8 @@ import networkx as nx
 import threading
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from tabulate import tabulate
 from statsmodels.tsa.seasonal import seasonal_decompose
+from tabulate import tabulate
 
 # Define colors for console output
 bash_color_reset = "\033[0m"
@@ -31,12 +31,12 @@ bash_color_red = "\033[91m"
 bash_color_green = "\033[92m"
 bash_color_yellow = "\033[93m"
 bash_color_blue = "\033[94m"
+bash_color_orange = "\033[38;5;214m"
 bash_color_magenta = "\033[95m"
 bash_color_cyan = "\033[96m"
 bash_color_light_blue = "\033[94m"
 bash_color_teal = "\033[36m"
 bash_color_light_green = "\033[92m"
-bash_color_orange = "\033[38;5;214m"
 
 # Define colors for plots
 py_color_green = "green"
@@ -88,14 +88,13 @@ def process_block(height, endpoint_type, endpoint_url):
         return None
 
 def categorize_block(block, categories):
-    size = block["size"]
-    if size < 1:
+    if block["size"] < 1:
         categories["less_than_1MB"].append(block)
-    elif 1 <= size < 2:
+    elif 1 <= block["size"] < 2:
         categories["1MB_to_2MB"].append(block)
-    elif 2 <= size < 3:
+    elif 2 <= block["size"] < 3:
         categories["2MB_to_3MB"].append(block)
-    elif 3 <= size < 5:
+    elif 3 <= block["size"] < 5:
         categories["3MB_to_5MB"].append(block)
     else:
         categories["greater_than_5MB"].append(block)
@@ -158,7 +157,7 @@ def generate_cumulative_sum_plot(times, sizes, output_image_file_base):
     plt.plot(times, cumulative_sum, color=py_color_blue)
     plt.title('Cumulative Sum of Block Sizes Over Time', fontsize=28)
     plt.xlabel('Time', fontsize=24)
-    plt.ylabel('Cumulative Size (MB)', fontsize=24)
+    plt.ylabel('Cumulative Sum (MB)', fontsize=24)
     plt.xticks(rotation=45)
     plt.tight_layout()
     plt.savefig(f"{output_image_file_base}_cumulative_sum_plot.png")
@@ -182,6 +181,7 @@ def generate_violin_plot(sizes, output_image_file_base):
     plt.figure(figsize=(38, 20))
     sns.violinplot(data=sizes)
     plt.title('Violin Plot of Block Sizes', fontsize=28)
+    plt.xlabel('Block Sizes', fontsize=24)
     plt.ylabel('Block Size (MB)', fontsize=24)
     plt.tight_layout()
     plt.savefig(f"{output_image_file_base}_violin_plot.png")
@@ -192,7 +192,7 @@ def generate_autocorrelation_plot(sizes, output_image_file_base):
     pd.plotting.autocorrelation_plot(pd.Series(sizes))
     plt.title('Autocorrelation of Block Sizes', fontsize=28)
     plt.xlabel('Lag', fontsize=24)
-    plt.ylabel('Autocorrelation', fontsize=24)
+    plt.ylabel('Block Size (MB)', fontsize=24)
     plt.tight_layout()
     plt.savefig(f"{output_image_file_base}_autocorrelation_plot.png")
     print(f"{bash_color_light_green}Autocorrelation plot generated successfully.{bash_color_reset}")
@@ -254,7 +254,7 @@ def generate_outlier_detection_plot(times, sizes, output_image_file_base):
     outliers = data[(data - mean).abs() > 2 * std_dev]
     plt.figure(figsize=(38, 20))
     plt.plot(times, sizes, 'b-', label='Block Size')
-    plt.plot(times[outliers.index], sizes[outliers.index], 'ro', label='Outliers')
+    plt.plot(times[outliers.index], outliers, 'ro', label='Outliers')
     plt.title('Outlier Detection in Block Sizes', fontsize=28)
     plt.xlabel('Time', fontsize=24)
     plt.ylabel('Block Size (MB)', fontsize=24)
@@ -279,12 +279,15 @@ def generate_segmented_bar_chart(times, sizes, output_image_file_base):
 
 def generate_graphs_and_table(block_data, output_image_file_base, lower_height, upper_height):
     categories = {
-        "less_than_1MB": [block for block in block_data if block["size"] < 1],
-        "1MB_to_2MB": [block for block in block_data if 1 <= block["size"] < 2],
-        "2MB_to_3MB": [block for block in block_data if 2 <= block["size"] < 3],
-        "3MB_to_5MB": [block for block in block_data if 3 <= block["size"] < 5],
-        "greater_than_5MB": [block for block in block_data if block["size"] >= 5]
+        "less_than_1MB": [],
+        "1MB_to_2MB": [],
+        "2MB_to_3MB": [],
+        "3MB_to_5MB": [],
+        "greater_than_5MB": []
     }
+
+    for block in block_data:
+        categorize_block(block, categories)
 
     total_blocks = len(block_data)
     table = [
@@ -366,7 +369,7 @@ def main():
     # Find the lowest available height if necessary
     lowest_height = find_lowest_height(connection_type, endpoint_url)
     if lower_height < lowest_height:
-        print(f"{bash_color_red}Lower height {lower_height} is less than the lowest available height {lowest_height}. Adjusting to {lowest_height}.{bash_color_reset}")
+        print(f"Lower height {lower_height} is less than the lowest available height {lowest_height}. Adjusting to {lowest_height}.")
         lower_height = lowest_height
 
     global executor
