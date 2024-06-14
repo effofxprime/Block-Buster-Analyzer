@@ -1,29 +1,30 @@
 #!/usr/bin/env python3
 # @Author - Jonathan - Erialos
+# @Email - erialos@thesilverfox.pro
+# @Website - https://thesilverfox.pro
+# @GitHub - https://github.com/effofxprime
 # @Twitter - https://twitter.com/ErialosOfAstora
 # @Date - 2024-06-06 15:19:00 UTC
 # @Last_Modified_By - Jonathan - Erialos
-# @Last_Modified_Time - 2024-06-13 21:16:00 UTC
-# @Version - 1.0.9
-# @Description - A tool to analyze block sizes in a blockchain.
+# @Last_Modified_Time - 2024-06-15 21:16:00 UTC
+# @Version - 1.0.10
+# @Description - This script analyzes block sizes in a blockchain and generates various visualizations.
 
 import os
 import sys
 import json
 import signal
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from datetime import datetime
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
-from matplotlib.ticker import MaxNLocator
 import seaborn as sns
 import networkx as nx
 import threading
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from statsmodels.tsa.seasonal import seasonal_decompose
 from tabulate import tabulate
+from statsmodels.tsa.seasonal import seasonal_decompose
+from datetime import datetime
 
 # Define colors for console output
 bash_color_reset = "\033[0m"
@@ -61,16 +62,13 @@ def signal_handler(sig, frame):
 
 signal.signal(signal.SIGINT, signal_handler)
 
-def calculate_avg(sizes):
-    return sum(sizes) / len(sizes) if sizes else 0
+def check_endpoint(endpoint_type, endpoint_url):
+    # Placeholder function to simulate endpoint checking
+    return True
 
-def parse_timestamp(timestamp):
-    try:
-        if '.' in timestamp:
-            timestamp = timestamp.split('.')[0] + 'Z'
-        return datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%SZ")
-    except ValueError:
-        raise ValueError(f"time data '{timestamp}' does not match any known format")
+def find_lowest_height(endpoint_type, endpoint_url):
+    # Placeholder function to simulate finding the lowest height from an endpoint
+    return 1
 
 def process_block(height, endpoint_type, endpoint_url):
     if shutdown_event.is_set():
@@ -88,16 +86,26 @@ def process_block(height, endpoint_type, endpoint_url):
         return None
 
 def categorize_block(block, categories):
-    if block["size"] < 1:
+    size = block["size"]
+    if size < 1:
         categories["less_than_1MB"].append(block)
-    elif 1 <= block["size"] < 2:
+    elif 1 <= size < 2:
         categories["1MB_to_2MB"].append(block)
-    elif 2 <= block["size"] < 3:
+    elif 2 <= size < 3:
         categories["2MB_to_3MB"].append(block)
-    elif 3 <= block["size"] < 5:
+    elif 3 <= size < 5:
         categories["3MB_to_5MB"].append(block)
     else:
         categories["greater_than_5MB"].append(block)
+
+def parse_timestamp(timestamp):
+    try:
+        return datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%SZ")
+    except ValueError:
+        try:
+            return datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S")
+        except ValueError:
+            raise ValueError(f"time data '{timestamp}' does not match any known format")
 
 # Chart generation functions
 def generate_scatter_plot(times, sizes, colors, output_image_file_base, lower_height, upper_height):
@@ -107,10 +115,6 @@ def generate_scatter_plot(times, sizes, colors, output_image_file_base, lower_he
     ax.set_title(f'Block Size Over Time (Scatter Plot)\nBlock Heights {lower_height} to {upper_height}', fontsize=28)
     ax.set_xlabel('Time', fontsize=24)
     ax.set_ylabel('Block Size (MB)', fontsize=24)
-    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
-    ax.xaxis.set_major_locator(mdates.DayLocator(interval=30))
-    ax.xaxis.set_minor_locator(mdates.DayLocator(interval=1))
-    ax.xaxis.set_major_locator(MaxNLocator(nbins=10))
     ax.tick_params(axis='x', labelrotation=45, labelsize=20)
     ax.tick_params(axis='y', labelsize=20)
     legend_patches = [
@@ -132,10 +136,6 @@ def generate_enhanced_scatter_plot(times, sizes, colors, output_image_file_base,
     ax.set_title(f'Enhanced Block Size Over Time (Scatter Plot)\nBlock Heights {lower_height} to {upper_height}', fontsize=28)
     ax.set_xlabel('Time', fontsize=24)
     ax.set_ylabel('Block Size (MB)', fontsize=24)
-    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
-    ax.xaxis.set_major_locator(mdates.DayLocator(interval=30))
-    ax.xaxis.set_minor_locator(mdates.DayLocator(interval=1))
-    ax.xaxis.set_major_locator(MaxNLocator(nbins=10))
     ax.tick_params(axis='x', labelrotation=45, labelsize=20)
     ax.tick_params(axis='y', labelsize=20)
     legend_patches = [
@@ -202,6 +202,10 @@ def generate_seasonal_decomposition_plot(times, sizes, output_image_file_base):
     result = seasonal_decompose(pd.Series(sizes, index=times), model='additive', period=365)
     fig = result.plot()
     fig.set_size_inches(38, 20)
+    plt.title('Seasonal Decomposition of Block Sizes', fontsize=28)
+    plt.xlabel('Time', fontsize=24)
+    plt.ylabel('Block Size (MB)', fontsize=24)
+    plt.xticks(rotation=45)
     plt.tight_layout()
     plt.savefig(f"{output_image_file_base}_seasonal_decomposition_plot.png")
     print(f"{bash_color_light_green}Seasonal decomposition plot generated successfully.{bash_color_reset}")
@@ -211,7 +215,7 @@ def generate_lag_plot(sizes, output_image_file_base):
     pd.plotting.lag_plot(pd.Series(sizes))
     plt.title('Lag Plot of Block Sizes', fontsize=28)
     plt.xlabel('Previous Size', fontsize=24)
-    plt.ylabel('Current Size', fontsize=24)
+    plt.ylabel('Block Size (MB)', fontsize=24)
     plt.tight_layout()
     plt.savefig(f"{output_image_file_base}_lag_plot.png")
     print(f"{bash_color_light_green}Lag plot generated successfully.{bash_color_reset}")
@@ -298,19 +302,18 @@ def generate_graphs_and_table(block_data, output_image_file_base, lower_height, 
         [f"{bash_color_magenta}Greater than 5MB{bash_color_reset}", f"{bash_color_magenta}{len(categories['greater_than_5MB']):,}{bash_color_reset}", f"{bash_color_magenta}{len(categories['greater_than_5MB']) / total_blocks * 100:.2f}%{bash_color_reset}", f"{bash_color_magenta}{calculate_avg([b['size'] for b in categories['greater_than_5MB']]):.2f}{bash_color_reset}", f"{bash_color_magenta}{min([b['size'] for b in categories['greater_than_5MB']], default=0):.2f}{bash_color_reset}", f"{bash_color_magenta}{max([b['size'] for b in categories['greater_than_5MB']], default=0):.2f}{bash_color_reset}"]
     ]
 
-    headers = [f"{bash_color_teal}Block Size Range{bash_color_reset}", f"{bash_color_teal}Count{bash_color_reset}", f"{bash_color_teal}Percentage{bash_color_reset}", f"{bash_color_teal}Average Size (MB){bash_color_reset}", f"{bash_color_teal}Min Size (MB){bash_color_reset}", f"{bash_color_teal}Max Size (MB){bash_color_reset}"]
-    table_str = tabulate(table, headers, tablefmt="grid")
-    print(f"\n{bash_color_light_blue}Number of blocks in each group for block heights {lower_height} to {upper_height}:{bash_color_reset}\n{table_str}")
+    print(f"\nNumber of blocks in each group for block heights {lower_height} to {upper_height}:")
+    print(tabulate(table, headers=["Block Size Range", "Count", "Percentage", "Average Size (MB)", "Min Size (MB)", "Max Size (MB)"], tablefmt="grid"))
 
     times = [parse_timestamp(block["time"]) for block in block_data]
     sizes = [block["size"] for block in block_data]
     colors = [
-        py_color_green if block["size"] < 1 else
-        py_color_yellow if 1 <= block["size"] < 2 else
-        py_color_orange if 2 <= block["size"] < 3 else
-        py_color_red if 3 <= block["size"] < 5 else
+        py_color_green if size < 1 else
+        py_color_yellow if 1 <= size < 2 else
+        py_color_orange if 2 <= size < 3 else
+        py_color_red if 3 <= size < 5 else
         py_color_magenta
-        for block in block_data
+        for size in sizes
     ]
 
     # Generate scatter and enhanced scatter plots first
@@ -390,9 +393,8 @@ def main():
                 block_data.append({"height": result[0], "size": result[1], "time": result[2]})
             pbar.update(1)
 
-    executor.shutdown(wait=True)
-
     if shutdown_event.is_set():
+        print(f"{bash_color_red}Shutdown event detected. Exiting...{bash_color_reset}")
         sys.exit(0)
 
     # Categorize blocks and prepare data for JSON output
