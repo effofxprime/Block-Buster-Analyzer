@@ -75,6 +75,14 @@ def find_lowest_height(endpoint_type, endpoint_url):
     # Placeholder function to simulate finding the lowest height from an endpoint
     return 1
 
+def parse_timestamp(timestamp):
+    try:
+        if '.' in timestamp:
+            timestamp = timestamp.split('.')[0] + 'Z'
+        return datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%SZ")
+    except ValueError:
+        raise ValueError(f"time data '{timestamp}' does not match any known format")
+
 def process_block(height, endpoint_type, endpoint_url):
     if shutdown_event.is_set():
         return None
@@ -103,20 +111,11 @@ def categorize_block(block, categories):
     else:
         categories["greater_than_5MB"].append(block)
 
-def parse_timestamp(timestamp):
-    try:
-        return datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%SZ")
-    except ValueError:
-        try:
-            return datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S")
-        except ValueError:
-            raise ValueError(f"time data '{timestamp}' does not match any known format")
-
 # Chart generation functions
 def generate_scatter_plot(times, sizes, colors, output_image_file_base, lower_height, upper_height):
     print(f"{bash_color_light_blue}Generating scatter plot...{bash_color_reset}")
     fig, ax = plt.subplots(figsize=(38, 20))
-    ax.scatter(times, sizes, color=colors)
+    ax.scatter(times, sizes, c=colors, s=10)
     ax.set_title(f'Block Size Over Time (Scatter Plot)\nBlock Heights {lower_height} to {upper_height}', fontsize=28)
     ax.set_xlabel('Time', fontsize=24)
     ax.set_ylabel('Block Size (MB)', fontsize=24)
@@ -141,7 +140,7 @@ def generate_scatter_plot(times, sizes, colors, output_image_file_base, lower_he
 def generate_enhanced_scatter_plot(times, sizes, colors, output_image_file_base, lower_height, upper_height):
     print(f"{bash_color_light_blue}Generating enhanced scatter plot...{bash_color_reset}")
     fig, ax = plt.subplots(figsize=(38, 20))
-    ax.scatter(times, sizes, color=colors, alpha=0.6, edgecolors='w', linewidth=0.5)
+    scatter = ax.scatter(times, sizes, c=colors, s=10, alpha=0.6, edgecolors='w', linewidth=0.5)
     ax.set_title(f'Enhanced Block Size Over Time (Scatter Plot)\nBlock Heights {lower_height} to {upper_height}', fontsize=28)
     ax.set_xlabel('Time', fontsize=24)
     ax.set_ylabel('Block Size (MB)', fontsize=24)
@@ -245,7 +244,7 @@ def generate_heatmap_with_additional_dimensions(times, sizes, output_image_file_
     plt.xlabel('Day of Week', fontsize=24)
     plt.ylabel('Hour of Day', fontsize=24)
     plt.tight_layout()
-    plt.savefig(f"{output_image_file_base}_heatmap_with_dimensions.png")
+    plt.savefig(f"{output_image_file_base}_heatmap.png")
     print(f"{bash_color_light_green}Heatmap with additional dimensions generated successfully.{bash_color_reset}")
 
 def generate_network_graph(times, sizes, output_image_file_base):
@@ -259,7 +258,6 @@ def generate_network_graph(times, sizes, output_image_file_base):
     plt.figure(figsize=(38, 20))
     nx.draw(G, pos, with_labels=False, node_size=50, node_color=py_color_teal, edge_color=py_color_dark_grey)
     plt.title('Network Graph of Block Sizes Over Time', fontsize=28)
-    plt.tight_layout()
     plt.savefig(f"{output_image_file_base}_network_graph.png")
     print(f"{bash_color_light_green}Network graph generated successfully.{bash_color_reset}")
 
@@ -319,19 +317,19 @@ def generate_graphs_and_table(block_data, output_image_file_base, lower_height, 
     times = [parse_timestamp(block["time"]) for block in block_data]
     sizes = [block["size"] for block in block_data]
     colors = [
-        py_color_green if size < 1 else
-        py_color_yellow if 1 <= size < 2 else
-        py_color_orange if 2 <= size < 3 else
-        py_color_red if 3 <= size < 5 else
+        py_color_green if block["size"] < 1 else
+        py_color_yellow if 1 <= block["size"] < 2 else
+        py_color_orange if 2 <= block["size"] < 3 else
+        py_color_red if 3 <= block["size"] < 5 else
         py_color_magenta
-        for size in sizes
+        for block in block_data
     ]
 
     # Generate scatter and enhanced scatter plots first
     generate_scatter_plot(times, sizes, colors, output_image_file_base, lower_height, upper_height)
     generate_enhanced_scatter_plot(times, sizes, colors, output_image_file_base, lower_height, upper_height)
 
-    # Generate remaining plots
+    # Generate other charts
     generate_cumulative_sum_plot(times, sizes, output_image_file_base)
     generate_rolling_average_plot(times, sizes, output_image_file_base)
     generate_violin_plot(sizes, output_image_file_base)
@@ -344,7 +342,7 @@ def generate_graphs_and_table(block_data, output_image_file_base, lower_height, 
     generate_segmented_bar_chart(times, sizes, output_image_file_base)
 
 def main():
-    if len(sys.argv) != 7:
+    if len(sys.argv) != 8:
         print(f"Usage: {sys.argv[0]} <block_interval> <num_threads> <lower_height> <upper_height> <connection_type> <endpoint_url> <json_file_path>")
         sys.exit(1)
 
