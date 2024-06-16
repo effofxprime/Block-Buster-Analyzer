@@ -76,12 +76,12 @@ def find_lowest_height(endpoint_type, endpoint_url):
     return 1
 
 def parse_timestamp(timestamp):
-    try:
-        if '.' in timestamp:
-            timestamp = timestamp.split('.')[0] + 'Z'
-        return datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%SZ")
-    except ValueError:
-        raise ValueError(f"time data '{timestamp}' does not match any known format")
+    for fmt in ("%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S"):
+        try:
+            return datetime.strptime(timestamp, fmt)
+        except ValueError:
+            continue
+    raise ValueError(f"time data '{timestamp}' does not match any known format")
 
 def process_block(height, endpoint_type, endpoint_url):
     if shutdown_event.is_set():
@@ -113,10 +113,10 @@ def categorize_block(block, categories):
 
 # Chart generation functions
 def generate_scatter_plot(times, sizes, colors, output_image_file_base, lower_height, upper_height):
-    print(f"{bash_color_light_blue}Generating scatter plot...{bash_color_reset}")
+    print(f"{bash_color_light_blue}Generating scatter chart...{bash_color_reset}")
     fig, ax = plt.subplots(figsize=(38, 20))
     ax.scatter(times, sizes, c=colors, s=10)
-    ax.set_title(f'Block Size Over Time (Scatter Plot)\nBlock Heights {lower_height} to {upper_height}', fontsize=28)
+    ax.set_title(f'Block Size Over Time (Scatter Chart)\nBlock Heights {lower_height} to {upper_height}', fontsize=28)
     ax.set_xlabel('Time', fontsize=24)
     ax.set_ylabel('Block Size (MB)', fontsize=24)
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
@@ -135,13 +135,13 @@ def generate_scatter_plot(times, sizes, colors, output_image_file_base, lower_he
     ax.legend(handles=legend_patches, fontsize=20)
     plt.tight_layout()
     plt.savefig(f"{output_image_file_base}_scatter_plot.png")
-    print(f"{bash_color_light_green}Scatter plot generated successfully.{bash_color_reset}")
+    print(f"{bash_color_light_green}Scatter chart generated successfully.{bash_color_reset}")
 
 def generate_enhanced_scatter_plot(times, sizes, colors, output_image_file_base, lower_height, upper_height):
-    print(f"{bash_color_light_blue}Generating enhanced scatter plot...{bash_color_reset}")
+    print(f"{bash_color_light_blue}Generating enhanced scatter chart...{bash_color_reset}")
     fig, ax = plt.subplots(figsize=(38, 20))
     scatter = ax.scatter(times, sizes, c=colors, s=10, alpha=0.6, edgecolors='w', linewidth=0.5)
-    ax.set_title(f'Enhanced Block Size Over Time (Scatter Plot)\nBlock Heights {lower_height} to {upper_height}', fontsize=28)
+    ax.set_title(f'Enhanced Block Size Over Time (Scatter Chart)\nBlock Heights {lower_height} to {upper_height}', fontsize=28)
     ax.set_xlabel('Time', fontsize=24)
     ax.set_ylabel('Block Size (MB)', fontsize=24)
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
@@ -160,10 +160,10 @@ def generate_enhanced_scatter_plot(times, sizes, colors, output_image_file_base,
     ax.legend(handles=legend_patches, fontsize=20)
     plt.tight_layout()
     plt.savefig(f"{output_image_file_base}_enhanced_scatter_plot.png")
-    print(f"{bash_color_light_green}Enhanced scatter plot generated successfully.{bash_color_reset}")
+    print(f"{bash_color_light_green}Enhanced scatter chart generated successfully.{bash_color_reset}")
 
 def generate_cumulative_sum_plot(times, sizes, output_image_file_base):
-    print(f"{bash_color_light_blue}Generating cumulative sum plot...{bash_color_reset}")
+    print(f"{bash_color_light_blue}Generating cumulative sum chart...{bash_color_reset}")
     cumulative_sum = np.cumsum(sizes)
     plt.figure(figsize=(38, 20))
     plt.plot(times, cumulative_sum, color=py_color_blue)
@@ -173,10 +173,10 @@ def generate_cumulative_sum_plot(times, sizes, output_image_file_base):
     plt.xticks(rotation=45)
     plt.tight_layout()
     plt.savefig(f"{output_image_file_base}_cumulative_sum_plot.png")
-    print(f"{bash_color_light_green}Cumulative sum plot generated successfully.{bash_color_reset}")
+    print(f"{bash_color_light_green}Cumulative sum chart generated successfully.{bash_color_reset}")
 
 def generate_rolling_average_plot(times, sizes, output_image_file_base):
-    print(f"{bash_color_light_blue}Generating rolling average plot...{bash_color_reset}")
+    print(f"{bash_color_light_blue}Generating rolling average chart...{bash_color_reset}")
     rolling_avg = pd.Series(sizes).rolling(window=100).mean()
     plt.figure(figsize=(38, 20))
     plt.plot(times, rolling_avg, color=py_color_green)
@@ -186,10 +186,10 @@ def generate_rolling_average_plot(times, sizes, output_image_file_base):
     plt.xticks(rotation=45)
     plt.tight_layout()
     plt.savefig(f"{output_image_file_base}_rolling_average_plot.png")
-    print(f"{bash_color_light_green}Rolling average plot generated successfully.{bash_color_reset}")
+    print(f"{bash_color_light_green}Rolling average chart generated successfully.{bash_color_reset}")
 
 def generate_violin_plot(sizes, output_image_file_base):
-    print(f"{bash_color_light_blue}Generating violin plot...{bash_color_reset}")
+    print(f"{bash_color_light_blue}Generating violin chart...{bash_color_reset}")
     plt.figure(figsize=(38, 20))
     sns.violinplot(data=sizes)
     plt.title('Violin Plot of Block Sizes', fontsize=28)
@@ -197,20 +197,20 @@ def generate_violin_plot(sizes, output_image_file_base):
     plt.ylabel('Block Size (MB)', fontsize=24)
     plt.tight_layout()
     plt.savefig(f"{output_image_file_base}_violin_plot.png")
-    print(f"{bash_color_light_green}Violin plot generated successfully.{bash_color_reset}")
+    print(f"{bash_color_light_green}Violin chart generated successfully.{bash_color_reset}")
 
 def generate_autocorrelation_plot(sizes, output_image_file_base):
-    print(f"{bash_color_light_blue}Generating autocorrelation plot...{bash_color_reset}")
+    print(f"{bash_color_light_blue}Generating autocorrelation chart...{bash_color_reset}")
     pd.plotting.autocorrelation_plot(pd.Series(sizes))
     plt.title('Autocorrelation of Block Sizes', fontsize=28)
     plt.xlabel('Lag', fontsize=24)
     plt.ylabel('Block Size (MB)', fontsize=24)
     plt.tight_layout()
     plt.savefig(f"{output_image_file_base}_autocorrelation_plot.png")
-    print(f"{bash_color_light_green}Autocorrelation plot generated successfully.{bash_color_reset}")
+    print(f"{bash_color_light_green}Autocorrelation chart generated successfully.{bash_color_reset}")
 
 def generate_seasonal_decomposition_plot(times, sizes, output_image_file_base):
-    print(f"{bash_color_light_blue}Generating seasonal decomposition plot...{bash_color_reset}")
+    print(f"{bash_color_light_blue}Generating seasonal decomposition chart...{bash_color_reset}")
     result = seasonal_decompose(pd.Series(sizes, index=times), model='additive', period=365)
     fig = result.plot()
     fig.set_size_inches(38, 20)
@@ -220,17 +220,17 @@ def generate_seasonal_decomposition_plot(times, sizes, output_image_file_base):
     plt.xticks(rotation=45)
     plt.tight_layout()
     plt.savefig(f"{output_image_file_base}_seasonal_decomposition_plot.png")
-    print(f"{bash_color_light_green}Seasonal decomposition plot generated successfully.{bash_color_reset}")
+    print(f"{bash_color_light_green}Seasonal decomposition chart generated successfully.{bash_color_reset}")
 
 def generate_lag_plot(sizes, output_image_file_base):
-    print(f"{bash_color_light_blue}Generating lag plot...{bash_color_reset}")
+    print(f"{bash_color_light_blue}Generating lag chart...{bash_color_reset}")
     pd.plotting.lag_plot(pd.Series(sizes))
     plt.title('Lag Plot of Block Sizes', fontsize=28)
     plt.xlabel('Previous Size', fontsize=24)
     plt.ylabel('Block Size (MB)', fontsize=24)
     plt.tight_layout()
     plt.savefig(f"{output_image_file_base}_lag_plot.png")
-    print(f"{bash_color_light_green}Lag plot generated successfully.{bash_color_reset}")
+    print(f"{bash_color_light_green}Lag chart generated successfully.{bash_color_reset}")
 
 def generate_heatmap_with_additional_dimensions(times, sizes, output_image_file_base):
     print(f"{bash_color_light_blue}Generating heatmap with additional dimensions...{bash_color_reset}")
@@ -258,25 +258,26 @@ def generate_network_graph(times, sizes, output_image_file_base):
     plt.figure(figsize=(38, 20))
     nx.draw(G, pos, with_labels=False, node_size=50, node_color=py_color_teal, edge_color=py_color_dark_grey)
     plt.title('Network Graph of Block Sizes Over Time', fontsize=28)
+    plt.tight_layout()
     plt.savefig(f"{output_image_file_base}_network_graph.png")
     print(f"{bash_color_light_green}Network graph generated successfully.{bash_color_reset}")
 
 def generate_outlier_detection_plot(times, sizes, output_image_file_base):
-    print(f"{bash_color_light_blue}Generating outlier detection plot...{bash_color_reset}")
+    print(f"{bash_color_light_blue}Generating outlier detection chart...{bash_color_reset}")
     data = pd.Series(sizes)
     mean = data.mean()
     std_dev = data.std()
     outliers = data[(data - mean).abs() > 2 * std_dev]
     plt.figure(figsize=(38, 20))
     plt.plot(times, sizes, 'b-', label='Block Size')
-    plt.plot(times[outliers.index], outliers, 'ro', label='Outliers')
+    plt.scatter(outliers.index, outliers, color=py_color_red, label='Outliers')
     plt.title('Outlier Detection in Block Sizes', fontsize=28)
     plt.xlabel('Time', fontsize=24)
     plt.ylabel('Block Size (MB)', fontsize=24)
     plt.legend(fontsize=20)
     plt.tight_layout()
     plt.savefig(f"{output_image_file_base}_outlier_detection_plot.png")
-    print(f"{bash_color_light_green}Outlier detection plot generated successfully.{bash_color_reset}")
+    print(f"{bash_color_light_green}Outlier detection chart generated successfully.{bash_color_reset}")
 
 def generate_segmented_bar_chart(times, sizes, output_image_file_base):
     print(f"{bash_color_light_blue}Generating segmented bar chart...{bash_color_reset}")
@@ -325,7 +326,7 @@ def generate_graphs_and_table(block_data, output_image_file_base, lower_height, 
         for block in block_data
     ]
 
-    # Generate scatter and enhanced scatter plots first
+    # Generate scatter and enhanced scatter charts first
     generate_scatter_plot(times, sizes, colors, output_image_file_base, lower_height, upper_height)
     generate_enhanced_scatter_plot(times, sizes, colors, output_image_file_base, lower_height, upper_height)
 
@@ -342,17 +343,17 @@ def generate_graphs_and_table(block_data, output_image_file_base, lower_height, 
     generate_segmented_bar_chart(times, sizes, output_image_file_base)
 
 def main():
-    if len(sys.argv) != 8:
+    if len(sys.argv) != 7:
         print(f"Usage: {sys.argv[0]} <block_interval> <num_threads> <lower_height> <upper_height> <connection_type> <endpoint_url> <json_file_path>")
         sys.exit(1)
 
-    block_interval = int(sys.argv[1])
-    num_threads = int(sys.argv[2])
-    lower_height = int(sys.argv[3])
-    upper_height = int(sys.argv[4])
-    connection_type = sys.argv[5]
-    endpoint_url = sys.argv[6]
-    json_file_path = sys.argv[7]
+    block_interval = int(sys.argv[0])
+    num_threads = int(sys.argv[1])
+    lower_height = int(sys.argv[2])
+    upper_height = int(sys.argv[3])
+    connection_type = sys.argv[4]
+    endpoint_url = sys.argv[5]
+    json_file_path = sys.argv[6]
     output_image_file_base = os.path.splitext(json_file_path)[0]
 
     # If a JSON file is specified, skip fetching and directly process the JSON file
