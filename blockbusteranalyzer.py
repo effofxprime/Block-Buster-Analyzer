@@ -30,6 +30,7 @@ from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from statsmodels.tsa.seasonal import seasonal_decompose
 from tabulate import tabulate
+import re  # Add this import
 
 # LOCKED
 # Define colors for console output
@@ -95,8 +96,11 @@ def process_block(height, endpoint_type, endpoint_url):
 def signal_handler(sig, frame):
     print(f"{bash_color_red}\nProcess interrupted. Exiting gracefully...{bash_color_reset}")
     shutdown_event.set()
-    if executor:
-        executor.shutdown(wait=False)
+    try:
+        if executor:
+            executor.shutdown(wait=False)
+    except NameError:
+        pass
     sys.exit(0)
 
 # LOCKED
@@ -164,90 +168,6 @@ def generate_enhanced_scatter_chart(times, sizes, colors, output_image_file_base
     plt.savefig(f"{output_image_file_base}_enhanced_scatter_chart.png")
     print(f"{bash_color_light_green}Enhanced scatter chart generated successfully.{bash_color_reset}")
 
-def generate_cumulative_sum_chart(times, sizes, output_image_file_base):
-    print(f"{bash_color_light_blue}Generating cumulative sum chart...{bash_color_reset}")
-    cumulative_sum = np.cumsum(sizes)
-    plt.figure(figsize=(38, 20))
-    plt.plot(times, cumulative_sum, color=py_color_blue)
-    plt.title('Cumulative Sum of Block Sizes', fontsize=28)
-    plt.xlabel('Time', fontsize=24)
-    plt.ylabel('Cumulative Sum (MB)', fontsize=24)
-    plt.xticks(rotation=45)
-    try:
-        plt.tight_layout()
-    except UserWarning:
-        pass
-    plt.savefig(f"{output_image_file_base}_cumulative_sum_chart.png")
-    print(f"{bash_color_light_green}Cumulative sum chart generated successfully.{bash_color_reset}")
-
-def generate_rolling_average_chart(times, sizes, output_image_file_base):
-    print(f"{bash_color_light_blue}Generating rolling average chart...{bash_color_reset}")
-    rolling_avg = pd.Series(sizes).rolling(window=100).mean()
-    plt.figure(figsize=(38, 20))
-    plt.plot(times, rolling_avg, color=py_color_green)
-    plt.title('Rolling Average of Block Sizes', fontsize=28)
-    plt.xlabel('Time', fontsize=24)
-    plt.ylabel('Rolling Average Size (MB)', fontsize=24)
-    plt.xticks(rotation=45)
-    try:
-        plt.tight_layout()
-    except UserWarning:
-        pass
-    plt.savefig(f"{output_image_file_base}_rolling_average_chart.png")
-    print(f"{bash_color_light_green}Rolling average chart generated successfully.{bash_color_reset}")
-
-def generate_violin_chart(sizes, output_image_file_base):
-    print(f"{bash_color_light_blue}Generating violin chart...{bash_color_reset}")
-    plt.figure(figsize=(38, 20))
-    sns.violinplot(data=sizes)
-    plt.title('Violin Chart of Block Sizes', fontsize=28)
-    plt.xlabel('Block Sizes', fontsize=24)
-    plt.ylabel('Block Size (MB)', fontsize=24)
-    try:
-        plt.tight_layout()
-    except UserWarning:
-        pass
-    plt.savefig(f"{output_image_file_base}_violin_chart.png")
-    print(f"{bash_color_light_green}Violin chart generated successfully.{bash_color_reset}")
-
-def generate_autocorrelation_chart(sizes, output_image_file_base):
-    print(f"{bash_color_light_blue}Generating autocorrelation chart...{bash_color_reset}")
-    pd.plotting.autocorrelation_plot(pd.Series(sizes))
-    plt.title('Autocorrelation of Block Sizes', fontsize=28)
-    plt.xlabel('Lag', fontsize=24)
-    plt.ylabel('Block Size (MB)', fontsize=24)
-    try:
-        plt.tight_layout()
-    except UserWarning:
-        pass
-    plt.savefig(f"{output_image_file_base}_autocorrelation_chart.png")
-    print(f"{bash_color_light_green}Autocorrelation chart generated successfully.{bash_color_reset}")
-
-def generate_seasonal_decomposition_chart(times, sizes, output_image_file_base):
-    print(f"{bash_color_light_blue}Generating seasonal decomposition chart...{bash_color_reset}")
-    result = seasonal_decompose(pd.Series(sizes, index=times), model='additive', period=365)
-    fig = result.plot()
-    fig.set_size_inches(38, 20)
-    try:
-        fig.tight_layout()
-    except UserWarning:
-        pass
-    plt.savefig(f"{output_image_file_base}_seasonal_decomposition_chart.png")
-    print(f"{bash_color_light_green}Seasonal decomposition chart generated successfully.{bash_color_reset}")
-
-def generate_lag_chart(sizes, output_image_file_base):
-    print(f"{bash_color_light_blue}Generating lag chart...{bash_color_reset}")
-    pd.plotting.lag_plot(pd.Series(sizes))
-    plt.title('Lag Chart of Block Sizes', fontsize=28)
-    plt.xlabel('Previous Size', fontsize=24)
-    plt.ylabel('Block Size (MB)', fontsize=24)
-    try:
-        plt.tight_layout()
-    except UserWarning:
-        pass
-    plt.savefig(f"{output_image_file_base}_lag_chart.png")
-    print(f"{bash_color_light_green}Lag chart generated successfully.{bash_color_reset}")
-
 def generate_heatmap_with_additional_dimensions(times, sizes, output_image_file_base):
     print(f"{bash_color_light_blue}Generating heatmap with additional dimensions...{bash_color_reset}")
     data = pd.DataFrame({'times': pd.to_datetime(times), 'sizes': sizes})
@@ -259,52 +179,9 @@ def generate_heatmap_with_additional_dimensions(times, sizes, output_image_file_
     plt.title('Heatmap of Block Sizes by Hour and Day of Week', fontsize=28)
     plt.xlabel('Day of Week', fontsize=24)
     plt.ylabel('Hour of Day', fontsize=24)
-    try:
-        plt.tight_layout()
-    except UserWarning:
-        pass
+    plt.tight_layout()
     plt.savefig(f"{output_image_file_base}_heatmap_with_dimensions.png")
     print(f"{bash_color_light_green}Heatmap with additional dimensions generated successfully.{bash_color_reset}")
-
-def generate_network_graph(times, sizes, output_image_file_base):
-    print(f"{bash_color_light_blue}Generating network graph...{bash_color_reset}")
-    G = nx.Graph()
-    for i in range(len(times)):
-        G.add_node(i, time=times[i], size=sizes[i])
-        if i > 0:
-            G.add_edge(i, i - 1)
-    pos = nx.spring_layout(G)
-    plt.figure(figsize=(38, 20))
-    nx.draw(G, pos, with_labels=False, node_size=50, node_color=py_color_teal, edge_color=py_color_dark_grey)
-    plt.title('Network Graph of Block Sizes Over Time', fontsize=28)
-    plt.xlabel('Time', fontsize=24)
-    plt.ylabel('Block Size (MB)', fontsize=24)
-    try:
-        plt.tight_layout()
-    except UserWarning:
-        pass
-    plt.savefig(f"{output_image_file_base}_network_graph.png")
-    print(f"{bash_color_light_green}Network graph generated successfully.{bash_color_reset}")
-
-def generate_outlier_detection_chart(times, sizes, output_image_file_base):
-    print(f"{bash_color_light_blue}Generating outlier detection chart...{bash_color_reset}")
-    data = pd.Series(sizes)
-    mean = data.mean()
-    std_dev = data.std()
-    outliers = data[(data - mean).abs() > 2 * std_dev]
-    plt.figure(figsize=(38, 20))
-    plt.plot(times, sizes, 'b-', label='Block Size')
-    plt.plot([times[i] for i in outliers.index], outliers, 'ro', label='Outliers')
-    plt.title('Outlier Detection in Block Sizes', fontsize=28)
-    plt.xlabel('Time', fontsize=24)
-    plt.ylabel('Block Size (MB)', fontsize=24)
-    plt.legend(fontsize=20)
-    try:
-        plt.tight_layout()
-    except UserWarning:
-        pass
-    plt.savefig(f"{output_image_file_base}_outlier_detection_chart.png")
-    print(f"{bash_color_light_green}Outlier detection chart generated successfully.{bash_color_reset}")
 
 def generate_segmented_bar_chart(times, sizes, output_image_file_base):
     print(f"{bash_color_light_blue}Generating segmented bar chart...{bash_color_reset}")
@@ -317,10 +194,7 @@ def generate_segmented_bar_chart(times, sizes, output_image_file_base):
     plt.xlabel('Block Size Range', fontsize=24)
     plt.ylabel('Count', fontsize=24)
     plt.xticks(rotation=0)
-    try:
-        plt.tight_layout()
-    except UserWarning:
-        pass
+    plt.tight_layout()
     plt.savefig(f"{output_image_file_base}_segmented_bar_chart.png")
     print(f"{bash_color_light_green}Segmented bar chart generated successfully.{bash_color_reset}")
 
@@ -346,7 +220,7 @@ def generate_graphs_and_table(block_data, output_image_file_base, lower_height, 
         [f"{bash_color_magenta}Greater than 5MB{bash_color_reset}", f"{bash_color_magenta}{len(categories['greater_than_5MB']):,}{bash_color_reset}", f"{bash_color_magenta}{len(categories['greater_than_5MB']) / total_blocks * 100:.2f}%{bash_color_reset}", f"{bash_color_magenta}{calculate_avg([b['size'] for b in categories['greater_than_5MB']]):.2f}{bash_color_reset}", f"{bash_color_magenta}{min([b['size'] for b in categories['greater_than_5MB']], default=0):.2f}{bash_color_reset}", f"{bash_color_magenta}{max([b['size'] for b in categories['greater_than_5MB']], default=0):.2f}{bash_color_reset}"]
     ]
 
-    print(tabulate(table, headers=[f"{bash_color_blue}Category{bash_color_reset}", f"{bash_color_blue}Count{bash_color_reset}", f"{bash_color_blue}Percentage{bash_color_reset}", f"{bash_color_blue}Average Size (MB){bash_color_reset}", f"{bash_color_blue}Min Size (MB){bash_color_reset}", f"{bash_color_blue}Max Size (MB){bash_color_reset}"], tablefmt="grid"))
+    print(tabulate(table, headers=[f"{bash_color_light_blue}Category{bash_color_reset}", f"{bash_color_light_blue}Count{bash_color_reset}", f"{bash_color_light_blue}Percentage{bash_color_reset}", f"{bash_color_light_blue}Average Size (MB){bash_color_reset}", f"{bash_color_light_blue}Min Size (MB){bash_color_reset}", f"{bash_color_light_blue}Max Size (MB){bash_color_reset}"], tablefmt="grid"))
 
     times = [parse_timestamp(block["time"]) for block in block_data]
     sizes = [block["size"] for block in block_data]
@@ -364,16 +238,8 @@ def generate_graphs_and_table(block_data, output_image_file_base, lower_height, 
     generate_enhanced_scatter_chart(times, sizes, colors, output_image_file_base, lower_height, upper_height)
 
     # Generate remaining charts
-    generate_cumulative_sum_chart(times, sizes, output_image_file_base)
-    generate_rolling_average_chart(times, sizes, output_image_file_base)
-    generate_violin_chart(sizes, output_image_file_base)
-    generate_autocorrelation_chart(sizes, output_image_file_base)
-    generate_seasonal_decomposition_chart(times, sizes, output_image_file_base)
-    generate_lag_chart(sizes, output_image_file_base)
-    generate_heatmap_with_additional_dimensions(times, sizes, output_image_file_base)
-    generate_network_graph(times, sizes, output_image_file_base)
-    generate_outlier_detection_chart(times, sizes, output_image_file_base)
     generate_segmented_bar_chart(times, sizes, output_image_file_base)
+    generate_heatmap_with_additional_dimensions(times, sizes, output_image_file_base)
 
 def main():
     global shutdown_event
@@ -382,8 +248,8 @@ def main():
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
-    if len(sys.argv) != 8:
-        print(f"Usage: {sys.argv[0]} <json_workers> <fetch_workers> <lower_height> <upper_height> <connection_type> <endpoint_url> <json_file_path>")
+    if len(sys.argv) < 7 or len(sys.argv) > 8:
+        print(f"Usage: {sys.argv[0]} <json_workers> <fetch_workers> <lower_height> <upper_height> <connection_type> <endpoint_url> [<json_file_path>]")
         sys.exit(1)
 
     json_workers = int(sys.argv[1])
@@ -392,14 +258,21 @@ def main():
     upper_height = int(sys.argv[4])
     connection_type = sys.argv[5]
     endpoint_url = sys.argv[6]
-    json_file_path = sys.argv[7]
-    output_image_file_base = os.path.splitext(json_file_path)[0]
+    json_file_path = sys.argv[7] if len(sys.argv) == 8 else None
+    output_image_file_base = os.path.splitext(json_file_path)[0] if json_file_path else "output"
 
     # LOCKED
     # If a JSON file is specified, skip fetching and directly process the JSON file
-    if os.path.exists(json_file_path):
+    if json_file_path and os.path.exists(json_file_path):
         with open(json_file_path) as f:
             data = json.load(f)
+
+        # Infer lower and upper height from the JSON file name if they are not provided
+        match = re.search(r'(\d+)-(\d+)', json_file_path)
+        if match:
+            lower_height = int(match.group(1))
+            upper_height = int(match.group(2))
+
         generate_graphs_and_table(data["block_data"], output_image_file_base, lower_height, upper_height)
         return
 
