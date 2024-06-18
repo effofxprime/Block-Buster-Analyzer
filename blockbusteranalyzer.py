@@ -8,8 +8,8 @@
 # @Twitter - https://twitter.com/ErialosOfAstora
 # @Date - 2024-06-06 15:19:00 UTC
 # @Last_Modified_By - Jonathan - Erialos
-# @Last_Modified_Time - 2024-06-18 17:39:00 UTC
-# @Version - 1.0.13
+# @Last_Modified_Time - 2024-06-19 17:39:00 UTC
+# @Version - 1.0.14
 # @Description - This script analyzes block sizes in a blockchain and generates various visualizations.
 
 # LOCKED - Only edit when we need to add or remove imports
@@ -30,7 +30,7 @@ from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from statsmodels.tsa.seasonal import seasonal_decompose
 from tabulate import tabulate
-import re  # Add this import
+import re
 
 # LOCKED
 # Define colors for console output
@@ -85,7 +85,7 @@ def process_block(height, endpoint_type, endpoint_url):
         # Simulate fetching block data
         block_data = {
             "height": height,
-            "size": np.random.uniform(0.01, 6.0),
+            "size": float(np.random.uniform(0.01, 6.0)),  # Ensure size is a float
             "time": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
         }
         return (block_data["height"], block_data["size"], block_data["time"])
@@ -96,11 +96,8 @@ def process_block(height, endpoint_type, endpoint_url):
 def signal_handler(sig, frame):
     print(f"{bash_color_red}\nProcess interrupted. Exiting gracefully...{bash_color_reset}")
     shutdown_event.set()
-    try:
-        if executor:
-            executor.shutdown(wait=False)
-    except NameError:
-        pass
+    if executor:
+        executor.shutdown(wait=False)
     sys.exit(0)
 
 # LOCKED
@@ -238,8 +235,8 @@ def generate_graphs_and_table(block_data, output_image_file_base, lower_height, 
     generate_enhanced_scatter_chart(times, sizes, colors, output_image_file_base, lower_height, upper_height)
 
     # Generate remaining charts
-    generate_segmented_bar_chart(times, sizes, output_image_file_base)
     generate_heatmap_with_additional_dimensions(times, sizes, output_image_file_base)
+    generate_segmented_bar_chart(times, sizes, output_image_file_base)
 
 def main():
     global shutdown_event
@@ -266,9 +263,13 @@ def main():
     if json_file_path and os.path.exists(json_file_path):
         with open(json_file_path) as f:
             data = json.load(f)
+        
+        # Convert sizes to float
+        for block in data["block_data"]:
+            block["size"] = float(block["size"])
 
-        # Infer lower and upper height from the JSON file name if they are not provided
-        match = re.search(r'(\d+)-(\d+)', json_file_path)
+        # Infer lower and upper height from JSON file name
+        match = re.search(r"(\d+)-(\d+)", json_file_path)
         if match:
             lower_height = int(match.group(1))
             upper_height = int(match.group(2))
@@ -341,6 +342,7 @@ def main():
 
     # LOCKED
     # Save data to JSON file
+    json_file_path = f"{output_image_file_base}_{lower_height}-{upper_height}.json"
     with open(json_file_path, 'w') as f:
         json.dump(data, f, default=str)
 
