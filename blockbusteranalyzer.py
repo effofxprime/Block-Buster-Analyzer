@@ -173,7 +173,10 @@ def generate_cumulative_sum_chart(times, sizes, output_image_file_base):
     plt.xlabel('Time', fontsize=24)
     plt.ylabel('Cumulative Sum (MB)', fontsize=24)
     plt.xticks(rotation=45)
-    plt.tight_layout()
+    try:
+        plt.tight_layout()
+    except UserWarning:
+        pass
     plt.savefig(f"{output_image_file_base}_cumulative_sum_chart.png")
     print(f"{bash_color_light_green}Cumulative sum chart generated successfully.{bash_color_reset}")
 
@@ -186,7 +189,10 @@ def generate_rolling_average_chart(times, sizes, output_image_file_base):
     plt.xlabel('Time', fontsize=24)
     plt.ylabel('Rolling Average Size (MB)', fontsize=24)
     plt.xticks(rotation=45)
-    plt.tight_layout()
+    try:
+        plt.tight_layout()
+    except UserWarning:
+        pass
     plt.savefig(f"{output_image_file_base}_rolling_average_chart.png")
     print(f"{bash_color_light_green}Rolling average chart generated successfully.{bash_color_reset}")
 
@@ -197,7 +203,10 @@ def generate_violin_chart(sizes, output_image_file_base):
     plt.title('Violin Chart of Block Sizes', fontsize=28)
     plt.xlabel('Block Sizes', fontsize=24)
     plt.ylabel('Block Size (MB)', fontsize=24)
-    plt.tight_layout()
+    try:
+        plt.tight_layout()
+    except UserWarning:
+        pass
     plt.savefig(f"{output_image_file_base}_violin_chart.png")
     print(f"{bash_color_light_green}Violin chart generated successfully.{bash_color_reset}")
 
@@ -207,7 +216,10 @@ def generate_autocorrelation_chart(sizes, output_image_file_base):
     plt.title('Autocorrelation of Block Sizes', fontsize=28)
     plt.xlabel('Lag', fontsize=24)
     plt.ylabel('Block Size (MB)', fontsize=24)
-    plt.tight_layout()
+    try:
+        plt.tight_layout()
+    except UserWarning:
+        pass
     plt.savefig(f"{output_image_file_base}_autocorrelation_chart.png")
     print(f"{bash_color_light_green}Autocorrelation chart generated successfully.{bash_color_reset}")
 
@@ -216,7 +228,10 @@ def generate_seasonal_decomposition_chart(times, sizes, output_image_file_base):
     result = seasonal_decompose(pd.Series(sizes, index=times), model='additive', period=365)
     fig = result.plot()
     fig.set_size_inches(38, 20)
-    fig.tight_layout()
+    try:
+        fig.tight_layout()
+    except UserWarning:
+        pass
     plt.savefig(f"{output_image_file_base}_seasonal_decomposition_chart.png")
     print(f"{bash_color_light_green}Seasonal decomposition chart generated successfully.{bash_color_reset}")
 
@@ -226,7 +241,10 @@ def generate_lag_chart(sizes, output_image_file_base):
     plt.title('Lag Chart of Block Sizes', fontsize=28)
     plt.xlabel('Previous Size', fontsize=24)
     plt.ylabel('Block Size (MB)', fontsize=24)
-    plt.tight_layout()
+    try:
+        plt.tight_layout()
+    except UserWarning:
+        pass
     plt.savefig(f"{output_image_file_base}_lag_chart.png")
     print(f"{bash_color_light_green}Lag chart generated successfully.{bash_color_reset}")
 
@@ -241,7 +259,10 @@ def generate_heatmap_with_additional_dimensions(times, sizes, output_image_file_
     plt.title('Heatmap of Block Sizes by Hour and Day of Week', fontsize=28)
     plt.xlabel('Day of Week', fontsize=24)
     plt.ylabel('Hour of Day', fontsize=24)
-    plt.tight_layout()
+    try:
+        plt.tight_layout()
+    except UserWarning:
+        pass
     plt.savefig(f"{output_image_file_base}_heatmap_with_dimensions.png")
     print(f"{bash_color_light_green}Heatmap with additional dimensions generated successfully.{bash_color_reset}")
 
@@ -258,7 +279,10 @@ def generate_network_graph(times, sizes, output_image_file_base):
     plt.title('Network Graph of Block Sizes Over Time', fontsize=28)
     plt.xlabel('Time', fontsize=24)
     plt.ylabel('Block Size (MB)', fontsize=24)
-    plt.tight_layout()
+    try:
+        plt.tight_layout()
+    except UserWarning:
+        pass
     plt.savefig(f"{output_image_file_base}_network_graph.png")
     print(f"{bash_color_light_green}Network graph generated successfully.{bash_color_reset}")
 
@@ -275,7 +299,10 @@ def generate_outlier_detection_chart(times, sizes, output_image_file_base):
     plt.xlabel('Time', fontsize=24)
     plt.ylabel('Block Size (MB)', fontsize=24)
     plt.legend(fontsize=20)
-    plt.tight_layout()
+    try:
+        plt.tight_layout()
+    except UserWarning:
+        pass
     plt.savefig(f"{output_image_file_base}_outlier_detection_chart.png")
     print(f"{bash_color_light_green}Outlier detection chart generated successfully.{bash_color_reset}")
 
@@ -290,7 +317,10 @@ def generate_segmented_bar_chart(times, sizes, output_image_file_base):
     plt.xlabel('Block Size Range', fontsize=24)
     plt.ylabel('Count', fontsize=24)
     plt.xticks(rotation=0)
-    plt.tight_layout()
+    try:
+        plt.tight_layout()
+    except UserWarning:
+        pass
     plt.savefig(f"{output_image_file_base}_segmented_bar_chart.png")
     print(f"{bash_color_light_green}Segmented bar chart generated successfully.{bash_color_reset}")
 
@@ -313,10 +343,10 @@ def generate_graphs_and_table(block_data, output_image_file_base, lower_height, 
         [f"{bash_color_yellow}1MB to 2MB{bash_color_reset}", f"{bash_color_yellow}{len(categories['1MB_to_2MB']):,}{bash_color_reset}", f"{bash_color_yellow}{len(categories['1MB_to_2MB']) / total_blocks * 100:.2f}%{bash_color_reset}", f"{bash_color_yellow}{calculate_avg([b['size'] for b in categories['1MB_to_2MB']]):.2f}{bash_color_reset}", f"{bash_color_yellow}{min([b['size'] for b in categories['1MB_to_2MB']], default=0):.2f}{bash_color_reset}", f"{bash_color_yellow}{max([b['size'] for b in categories['1MB_to_2MB']], default=0):.2f}{bash_color_reset}"],
         [f"{bash_color_orange}2MB to 3MB{bash_color_reset}", f"{bash_color_orange}{len(categories['2MB_to_3MB']):,}{bash_color_reset}", f"{bash_color_orange}{len(categories['2MB_to_3MB']) / total_blocks * 100:.2f}%{bash_color_reset}", f"{bash_color_orange}{calculate_avg([b['size'] for b in categories['2MB_to_3MB']]):.2f}{bash_color_reset}", f"{bash_color_orange}{min([b['size'] for b in categories['2MB_to_3MB']], default=0):.2f}{bash_color_reset}", f"{bash_color_orange}{max([b['size'] for b in categories['2MB_to_3MB']], default=0):.2f}{bash_color_reset}"],
         [f"{bash_color_red}3MB to 5MB{bash_color_reset}", f"{bash_color_red}{len(categories['3MB_to_5MB']):,}{bash_color_reset}", f"{bash_color_red}{len(categories['3MB_to_5MB']) / total_blocks * 100:.2f}%{bash_color_reset}", f"{bash_color_red}{calculate_avg([b['size'] for b in categories['3MB_to_5MB']]):.2f}{bash_color_reset}", f"{bash_color_red}{min([b['size'] for b in categories['3MB_to_5MB']], default=0):.2f}{bash_color_reset}", f"{bash_color_red}{max([b['size'] for b in categories['3MB_to_5MB']], default=0):.2f}{bash_color_reset}"],
-        [f"{bash_color_magenta}Greater than 5MB{bash_color_reset}", f"{bash_color_magenta}{len(categories['greater_than_5MB']):,}{bash_color_reset}", f"{bash_color_magenta}{len(categories['greater_than_5MB']) / total_blocks * 100:.2f}%{bash_color_reset}", f"{bash_color_magenta}{calculate_avg([b['size'] for b in categories['greater_than_5MB']]):.2f}{bash_color_reset}", f"{bash_color_magenta}{min([b['size'] for b in categories['greater_than_5MB']], default=0):.2f}{bash_color_reset}", f"{bash_color_magenta}{max([b['size'] for b in categories['greater_than_5MB']], default=0):.2f}{bash_color_reset}"]
+        [f"{bash_color_magenta}Greater than 5MB{bash_color_reset}", f"{bash_color_magenta}{len(categories['greater_than_5MB']):,}{bash_color_reset}", f"{bash_color_magenta}{len(categories['greater_than_5MB']) / total blocks * 100:.2f}%{bash_color_reset}", f"{bash_color_magenta}{calculate_avg([b['size'] for b in categories['greater_than_5MB']]):.2f}{bash_color_reset}", f"{bash_color_magenta}{min([b['size'] for b in categories['greater_than_5MB']], default=0):.2f}{bash_color_reset}", f"{bash_color_magenta}{max([b['size'] for b in categories['greater_than_5MB']], default=0):.2f}{bash_color_reset}"]
     ]
 
-    print(tabulate(table, headers=["Category", "Count", "Percentage", "Average Size (MB)", "Min Size (MB)", "Max Size (MB)"], tablefmt="grid"))
+    print(tabulate(table, headers=[f"{bash_color_blue}Category{bash_color_reset}", f"{bash_color_blue}Count{bash_color_reset}", f"{bash_color_blue}Percentage{bash_color_reset}", f"{bash_color_blue}Average Size (MB){bash_color_reset}", f"{bash_color_blue}Min Size (MB){bash_color_reset}", f"{bash_color_blue}Max Size (MB){bash_color_reset}"], tablefmt="grid"))
 
     times = [parse_timestamp(block["time"]) for block in block_data]
     sizes = [block["size"] for block in block_data]
