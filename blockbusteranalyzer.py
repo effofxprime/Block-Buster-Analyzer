@@ -216,7 +216,7 @@ def generate_seasonal_decomposition_chart(times, sizes, output_image_file_base):
     result = seasonal_decompose(pd.Series(sizes, index=times), model='additive', period=365)
     fig = result.plot()
     fig.set_size_inches(38, 20)
-    plt.tight_layout()
+    fig.tight_layout()
     plt.savefig(f"{output_image_file_base}_seasonal_decomposition_chart.png")
     print(f"{bash_color_light_green}Seasonal decomposition chart generated successfully.{bash_color_reset}")
 
@@ -270,7 +270,7 @@ def generate_outlier_detection_chart(times, sizes, output_image_file_base):
     outliers = data[(data - mean).abs() > 2 * std_dev]
     plt.figure(figsize=(38, 20))
     plt.plot(times, sizes, 'b-', label='Block Size')
-    plt.plot(times[outliers.index], outliers, 'ro', label='Outliers')
+    plt.plot([times[i] for i in outliers.index], outliers, 'ro', label='Outliers')
     plt.title('Outlier Detection in Block Sizes', fontsize=28)
     plt.xlabel('Time', fontsize=24)
     plt.ylabel('Block Size (MB)', fontsize=24)
