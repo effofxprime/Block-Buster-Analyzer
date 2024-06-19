@@ -8,7 +8,7 @@
 # @Twitter - https://twitter.com/ErialosOfAstora
 # @Date - 2024-06-06 15:19:00 UTC
 # @Last_Modified_By - Jonathan - Erialos
-# @Last_Modified_Time - 2024-06-18 17:39:00 UTC
+# @Last_Modified_Time - 2024-06-19 17:39:00 UTC
 # @Version - 1.0.14
 # @Description - This script analyzes block sizes in a blockchain and generates various visualizations.
 
@@ -30,20 +30,20 @@ from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from statsmodels.tsa.seasonal import seasonal_decompose
 from tabulate import tabulate
-import re  # Importing re module for regex operations
+import re
 
 # LOCKED
 # Define colors for console output
-bash_color_reset = "\\033[0m"
-bash_color_red = "\\033[91m"
-bash_color_green = "\\033[92m"
-bash_color_yellow = "\\033[93m"
-bash_color_orange = "\\033[33m"
-bash_color_magenta = "\\033[35m"
-bash_color_blue = "\\033[34m"
-bash_color_light_blue = "\\033[94m"
-bash_color_teal = "\\033[36m"
-bash_color_light_green = "\\033[92m"
+bash_color_reset = "\033[0m"
+bash_color_red = "\033[91m"
+bash_color_green = "\033[92m"
+bash_color_yellow = "\033[93m"
+bash_color_orange = "\033[33m"
+bash_color_magenta = "\033[35m"
+bash_color_blue = "\033[34m"
+bash_color_light_blue = "\033[94m"
+bash_color_teal = "\033[36m"
+bash_color_light_green = "\033[92m"
 
 # LOCKED
 # Define colors for charts
@@ -85,7 +85,7 @@ def process_block(height, endpoint_type, endpoint_url):
         # Simulate fetching block data
         block_data = {
             "height": height,
-            "size": float(np.random.uniform(0.01, 6.0)),
+            "size": float(np.random.uniform(0.01, 6.0)),  # Ensure size is a float
             "time": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
         }
         return (block_data["height"], block_data["size"], block_data["time"])
@@ -94,7 +94,7 @@ def process_block(height, endpoint_type, endpoint_url):
         return None
 
 def signal_handler(sig, frame):
-    print(f"{bash_color_red}\\nProcess interrupted. Exiting gracefully...{bash_color_reset}")
+    print(f"{bash_color_red}\nProcess interrupted. Exiting gracefully...{bash_color_reset}")
     shutdown_event.set()
     if executor:
         executor.shutdown(wait=False)
@@ -119,7 +119,7 @@ def generate_scatter_chart(times, sizes, colors, output_image_file_base, lower_h
     print(f"{bash_color_light_blue}Generating scatter chart...{bash_color_reset}")
     fig, ax = plt.subplots(figsize=(38, 20))
     scatter = ax.scatter(times, sizes, c=colors, s=10)
-    ax.set_title(f'Block Size Over Time (Scatter Chart)\\nBlock Heights {lower_height} to {upper_height}', fontsize=28)
+    ax.set_title(f'Block Size Over Time (Scatter Chart)\nBlock Heights {lower_height} to {upper_height}', fontsize=28)
     ax.set_xlabel('Time', fontsize=24)
     ax.set_ylabel('Block Size (MB)', fontsize=24)
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
@@ -144,7 +144,7 @@ def generate_enhanced_scatter_chart(times, sizes, colors, output_image_file_base
     print(f"{bash_color_light_blue}Generating enhanced scatter chart...{bash_color_reset}")
     fig, ax = plt.subplots(figsize=(38, 20))
     scatter = ax.scatter(times, sizes, c=colors, s=10, alpha=0.6, edgecolors='w', linewidth=0.5)
-    ax.set_title(f'Enhanced Block Size Over Time (Scatter Chart)\\nBlock Heights {lower_height} to {upper_height}', fontsize=28)
+    ax.set_title(f'Enhanced Block Size Over Time (Scatter Chart)\nBlock Heights {lower_height} to {upper_height}', fontsize=28)
     ax.set_xlabel('Time', fontsize=24)
     ax.set_ylabel('Block Size (MB)', fontsize=24)
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
@@ -220,7 +220,7 @@ def generate_graphs_and_table(block_data, output_image_file_base, lower_height, 
     print(tabulate(table, headers=[f"{bash_color_light_blue}Category{bash_color_reset}", f"{bash_color_light_blue}Count{bash_color_reset}", f"{bash_color_light_blue}Percentage{bash_color_reset}", f"{bash_color_light_blue}Average Size (MB){bash_color_reset}", f"{bash_color_light_blue}Min Size (MB){bash_color_reset}", f"{bash_color_light_blue}Max Size (MB){bash_color_reset}"], tablefmt="grid"))
 
     times = [parse_timestamp(block["time"]) for block in block_data]
-    sizes = [float(block["size"]) for block in block_data]  # Ensuring 'size' is converted to float
+    sizes = [block["size"] for block in block_data]
     colors = [
         py_color_green if block["size"] < 1 else
         py_color_yellow if 1 <= block["size"] < 2 else
@@ -245,7 +245,7 @@ def main():
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
-    if len(sys.argv) < 7:
+    if len(sys.argv) < 7 or len(sys.argv) > 8:
         print(f"Usage: {sys.argv[0]} <json_workers> <fetch_workers> <lower_height> <upper_height> <connection_type> <endpoint_url> [<json_file_path>]")
         sys.exit(1)
 
@@ -255,22 +255,27 @@ def main():
     upper_height = int(sys.argv[4])
     connection_type = sys.argv[5]
     endpoint_url = sys.argv[6]
+    json_file_path = sys.argv[7] if len(sys.argv) == 8 else None
+    output_image_file_base = os.path.splitext(json_file_path)[0] if json_file_path else "output"
 
-    if len(sys.argv) == 8:
-        json_file_path = sys.argv[7]
-        output_image_file_base = os.path.splitext(json_file_path)[0]
+    # LOCKED
+    # If a JSON file is specified, skip fetching and directly process the JSON file
+    if json_file_path and os.path.exists(json_file_path):
+        with open(json_file_path) as f:
+            data = json.load(f)
+        
+        # Convert sizes to float
+        for block in data["block_data"]:
+            block["size"] = float(block["size"])
 
-        if os.path.exists(json_file_path):
-            with open(json_file_path) as f:
-                data = json.load(f)
-            filename = os.path.basename(json_file_path)
-            heights = re.findall(r"(\d+)", filename)
-            if len(heights) >= 2:
-                lower_height, upper_height = int(heights[-2]), int(heights[-1])
-            generate_graphs_and_table(data["block_data"], output_image_file_base, lower_height, upper_height)
-            return
+        # Infer lower and upper height from JSON file name
+        match = re.search(r"(\d+)-(\d+)", json_file_path)
+        if match:
+            lower_height = int(match.group(1))
+            upper_height = int(match.group(2))
 
-    output_image_file_base = f"block_data_{lower_height}_{upper_height}"
+        generate_graphs_and_table(data["block_data"], output_image_file_base, lower_height, upper_height)
+        return
 
     # LOCKED
     # Check endpoint availability
@@ -337,7 +342,8 @@ def main():
 
     # LOCKED
     # Save data to JSON file
-    with open(f"{output_image_file_base}.json", 'w') as f:
+    json_file_path = f"{output_image_file_base}_{lower_height}-{upper_height}.json"
+    with open(json_file_path, 'w') as f:
         json.dump(data, f, default=str)
 
     # LOCKED
