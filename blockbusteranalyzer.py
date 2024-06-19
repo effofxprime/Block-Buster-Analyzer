@@ -9,7 +9,7 @@
 # @Date - 2024-06-06 15:19:00 UTC
 # @Last_Modified_By - Jonathan - Erialos
 # @Last_Modified_Time - 2024-06-19 17:39:00 UTC
-# @Version - 1.0.14
+# @Version - 1.0.15
 # @Description - This script analyzes block sizes in a blockchain and generates various visualizations.
 
 # LOCKED - Only edit when we need to add or remove imports
@@ -21,7 +21,7 @@ import matplotlib.pyplot as plt
 import threading
 import numpy as np
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 import matplotlib.dates as mdates
 from matplotlib.ticker import MaxNLocator
 import seaborn as sns
@@ -42,11 +42,12 @@ bash_color_red = "\033[91m"
 bash_color_green = "\033[92m"
 bash_color_yellow = "\033[93m"
 bash_color_orange = "\033[33m"
-bash_color_magenta = "\033[35m"
+bash_color_magenta = "\033[38;5;13m"  # Corrected magenta
 bash_color_blue = "\033[34m"
-bash_color_light_blue = "\033[94m"
+bash_color_light_blue = "\033[38;5;123m"  # Corrected light blue
 bash_color_teal = "\033[36m"
 bash_color_light_green = "\033[92m"
+bash_color_dark_grey = "\033[38;5;245m"
 
 # LOCKED
 # Define colors for charts
@@ -182,23 +183,23 @@ def generate_enhanced_scatter_chart(times, sizes, colors, output_image_file_base
     print(f"{bash_color_light_blue}Generating enhanced scatter chart...{bash_color_reset}")
     fig, ax = plt.subplots(figsize=(38, 20))
     scatter = ax.scatter(times, sizes, c=colors, s=10, alpha=0.6, edgecolors='w', linewidth=0.5)
-    ax.set_title(f'Block Size Over Time (Enhanced Scatter Chart)\nBlock Heights {lower_height} to {upper_height}', fontsize=32)
-    ax.set_xlabel('Time', fontsize=28)
-    ax.set_ylabel('Block Size (MB)', fontsize=28)
+    ax.set_title(f'Block Size Over Time (Enhanced Scatter Chart)\nBlock Heights {lower_height} to {upper_height}', fontsize=28)
+    ax.set_xlabel('Time', fontsize=24)
+    ax.set_ylabel('Block Size (MB)', fontsize=24)
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
     ax.xaxis.set_major_locator(mdates.DayLocator(interval=30))
     ax.xaxis.set_minor_locator(mdates.DayLocator(interval=1))
     ax.xaxis.set_major_locator(MaxNLocator(nbins=10))
-    ax.tick_params(axis='x', labelrotation=45, labelsize=24)
-    ax.tick_params(axis='y', labelsize=24)
+    ax.tick_params(axis='x', labelrotation=45, labelsize=20)
+    ax.tick_params(axis='y', labelsize=20)
     legend_patches = [
-        plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=py_color_green, markersize=12, label='< 1MB'),
-        plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=py_color_yellow, markersize=12, label='1MB to 2MB'),
-        plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=py_color_orange, markersize=12, label='2MB to 3MB'),
-        plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=py_color_red, markersize=12, label='3MB to 5MB'),
-        plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=py_color_magenta, markersize=12, label='> 5MB')
+        plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=py_color_green, markersize=10, label='< 1MB'),
+        plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=py_color_yellow, markersize=10, label='1MB to 2MB'),
+        plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=py_color_orange, markersize=10, label='2MB to 3MB'),
+        plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=py_color_red, markersize=10, label='3MB to 5MB'),
+        plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=py_color_magenta, markersize=10, label='> 5MB')
     ]
-    ax.legend(handles=legend_patches, fontsize=24)
+    ax.legend(handles=legend_patches, fontsize=20)
     plt.tight_layout()
     plt.savefig(f"{output_image_file_base}_enhanced_scatter_chart.png")
     print(f"{bash_color_light_green}Enhanced scatter chart generated successfully.{bash_color_reset}")
@@ -210,12 +211,12 @@ def generate_heatmap_with_additional_dimensions(times, sizes, output_image_file_
     data["day_of_week"] = data["times"].dt.dayofweek
     heatmap_data = pd.pivot_table(data, values="sizes", index="hour", columns="day_of_week", aggfunc=np.mean)
     plt.figure(figsize=(38, 20))
-    sns.heatmap(heatmap_data, cmap="YlGnBu", annot=True, fmt=".2f")
-    plt.title('Heatmap of Block Sizes by Hour and Day of Week', fontsize=32)
-    plt.xlabel('Day of Week', fontsize=28)
-    plt.ylabel('Hour of Day', fontsize=28)
-    plt.xticks(ticks=[0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5], labels=["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"], fontsize=24)
-    plt.yticks(fontsize=24)
+    sns.heatmap(heatmap_data, cmap="YlGnBu", annot=True, fmt=".2f", annot_kws={"size": 16})
+    plt.title('Heatmap of Block Sizes by Hour and Day of Week', fontsize=28)
+    plt.xlabel('Day of Week', fontsize=24)
+    plt.ylabel('Hour of Day', fontsize=24)
+    plt.xticks(ticks=[0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5], labels=['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'], fontsize=20)
+    plt.yticks(fontsize=20)
     plt.tight_layout()
     plt.savefig(f"{output_image_file_base}_heatmap_with_dimensions.png")
     print(f"{bash_color_light_green}Heatmap with additional dimensions generated successfully.{bash_color_reset}")
@@ -226,15 +227,14 @@ def generate_segmented_bar_chart(times, sizes, output_image_file_base):
     data["size_range"] = pd.cut(data["sizes"], bins=[0, 1, 2, 3, 5, np.inf], labels=["<1MB", "1MB-2MB", "2MB-3MB", "3MB-5MB", ">5MB"])
     size_ranges = data["size_range"].value_counts().sort_index()
     plt.figure(figsize=(38, 20))
-    bars = size_ranges.plot(kind="bar", color=[py_color_green, py_color_yellow, py_color_orange, py_color_red, py_color_magenta])
-    plt.title('Segmented Bar Chart of Block Sizes', fontsize=32)
-    plt.xlabel('Block Size Range', fontsize=28)
-    plt.ylabel('Count', fontsize=28)
-    plt.xticks(rotation=0, fontsize=24)
-    plt.yticks(fontsize=24)
-    plt.yscale('log')
+    bars = size_ranges.plot(kind="bar", color=[py_color_green, py_color_yellow, py_color_orange, py_color_red, py_color_magenta], log=True)
+    plt.title('Segmented Bar Chart of Block Sizes', fontsize=28)
+    plt.xlabel('Block Size Range', fontsize=24)
+    plt.ylabel('Count', fontsize=24)
+    plt.xticks(rotation=0, fontsize=20)
+    plt.yticks(fontsize=20)
     for bar in bars.patches:
-        bars.annotate(f'{bar.get_height():.0f}', (bar.get_x() + bar.get_width() / 2, bar.get_height()), ha='center', va='center', fontsize=24, color='black', xytext=(0, 10), textcoords='offset points')
+        bars.annotate(f'{int(bar.get_height())}', (bar.get_x() + bar.get_width() / 2, bar.get_height()), ha='center', va='bottom', fontsize=20)
     plt.tight_layout()
     plt.savefig(f"{output_image_file_base}_segmented_bar_chart.png")
     print(f"{bash_color_light_green}Segmented bar chart generated successfully.{bash_color_reset}")
@@ -261,7 +261,7 @@ def generate_graphs_and_table(block_data, output_image_file_base, lower_height, 
         [f"{bash_color_magenta}Greater than 5MB{bash_color_reset}", f"{bash_color_magenta}{len(categories['greater_than_5MB']):,}{bash_color_reset}", f"{bash_color_magenta}{len(categories['greater_than_5MB']) / total_blocks * 100:.2f}%{bash_color_reset}", f"{bash_color_magenta}{calculate_avg([b['size'] for b in categories['greater_than_5MB']]):.2f}{bash_color_reset}", f"{bash_color_magenta}{min([b['size'] for b in categories['greater_than_5MB']], default=0):.2f}{bash_color_reset}", f"{bash_color_magenta}{max([b['size'] for b in categories['greater_than_5MB']], default=0):.2f}{bash_color_reset}"]
     ]
 
-    print(tabulate(table, headers=[f"{bash_color_light_blue}Category{bash_color_reset}", f"{bash_color_light_blue}Count{bash_color_reset}", f"{bash_color_light_blue}Percentage{bash_color_reset}", f"{bash_color_light_blue}Average Size (MB){bash_color_reset}", f"{bash_color_light_blue}Min Size (MB){bash_color_reset}", f"{bash_color_light_blue}Max Size (MB){bash_color_reset}"], tablefmt="grid"))
+    print(tabulate(table, headers=["Category", "Count", "Percentage", "Average Size (MB)", "Min Size (MB)", "Max Size (MB)"], tablefmt="grid"))
 
     times = [parse_timestamp(block["time"]) for block in block_data]
     sizes = [block["size"] for block in block_data]
@@ -339,6 +339,45 @@ def main():
     # LOCKED
     # Fetch block data
     block_data = []
+    print(f"{bash_color_light_blue}\nChecking the specified starting block height...{bash_color_reset}")
+
+    # Health check
+    retries = 3
+    for attempt in range(retries):
+        if check_endpoint(connection_type, endpoint_url):
+            break
+        else:
+            print(f"{bash_color_yellow}RPC endpoint unreachable. Retrying {attempt + 1}/{retries}...{bash_color_reset}")
+            time.sleep(5)
+    else:
+        print(f"{bash_color_red}RPC endpoint unreachable after multiple attempts. Exiting.{bash_color_reset}")
+        sys.exit(1)
+
+    block_info = process_block(lower_height, connection_type, endpoint_url)
+    if block_info is None:
+        print(f"{bash_color_yellow}Block height {lower_height} does not exist. Finding the earliest available block height...{bash_color_reset}")
+        lower_height = find_lowest_height(connection_type, endpoint_url)
+        if lower_height is None:
+            print(f"{bash_color_red}Failed to determine the earliest block height. Exiting.{bash_color_reset}")
+            sys.exit(1)
+        print(f"{bash_color_light_blue}Using earliest available block height: {lower_height}{bash_color_reset}")
+
+    if lower_height > upper_height:
+        print(f"{bash_color_red}The specified lower height {lower_height} is greater than the specified upper height {upper_height}. Exiting.{bash_color_reset}")
+        sys.exit(1)
+
+    print(f"{bash_color_light_blue}\nFetching block information. This may take a while for large ranges. Please wait...{bash_color_reset}")
+
+    start_time = datetime.utcnow()
+    current_date = start_time.strftime("%B %A %d, %Y %H:%M:%S UTC")
+    output_file = f"block_sizes_{lower_height}_to_{upper_height}_{start_time.strftime('%Y%m%d_%H%M%S')}.json"
+    output_image_file_base = f"block_sizes_{lower_height}_to_{upper_height}_{start_time.strftime('%Y%m%d_%H%M%S')}"
+
+    total_blocks = upper_height - lower_height + 1
+    start_script_time = time.time()
+
+    print(f"{bash_color_dark_grey}\n{'='*40}\n{bash_color_reset}")
+
     with tqdm(total=(upper_height - lower_height + 1)) as pbar:
         futures = {
             executor.submit(process_block, height, connection_type, endpoint_url): height
@@ -352,6 +391,12 @@ def main():
             if result:
                 block_data.append({"height": result[0], "size": result[1], "time": result[2]})
             pbar.update(1)
+            completed = pbar.n
+            progress = (completed / total_blocks) * 100
+            elapsed_time = time.time() - start_script_time
+            estimated_total_time = elapsed_time / completed * total_blocks
+            time_left = estimated_total_time - elapsed_time
+            print(f"{bash_color_light_blue}Progress: {progress:.2f}% ({completed}/{total_blocks}) - Estimated time left: {timedelta(seconds=int(time_left))}", end='\r')
 
     executor.shutdown(wait=True)
 
