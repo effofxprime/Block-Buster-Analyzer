@@ -31,6 +31,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from statsmodels.tsa.seasonal import seasonal_decompose
 from tabulate import tabulate
 import re
+import requests
+import requests_unixsocket
+from urllib.parse import quote_plus
 
 # LOCKED
 # Define colors for console output
@@ -62,12 +65,47 @@ def calculate_avg(sizes):
     return sum(sizes) / len(sizes) if sizes else 0
 
 def check_endpoint(endpoint_type, endpoint_url):
-    # Placeholder function to simulate endpoint checking
-    return True
+    try:
+        if endpoint_type == "socket":
+            session = requests_unixsocket.Session()
+            encoded_url = f"http+unix://{quote_plus(endpoint_url)}/health"
+            response = session.get(encoded_url, timeout=5)
+        else:
+            response = requests.get(f"{endpoint_url}/health", timeout=5)
+        return response.status_code == 200
+    except requests.RequestException:
+        return False
 
 def find_lowest_height(endpoint_type, endpoint_url):
-    # Placeholder function to simulate finding the lowest height from an endpoint
-    return 0
+    try:
+        if endpoint_type == "socket":
+            session = requests_unixsocket.Session()
+            encoded_url = f"http+unix://{quote_plus(endpoint_url)}/block?height=1"
+            response = session.get(encoded_url, timeout=10)
+        else:
+            response = requests.get(f"{endpoint_url}/block?height=1", timeout=10)
+            response.raise_for_status()
+        block_info = response.json()
+        if 'error' in block_info and 'data' in block_info['error']:
+            data_message = block_info['error']['data']
+            print(f"Data message: {data_message}")  # Essential message
+            if "lowest height is" in data_message:
+                return int(data_message.split("lowest height is")[1].strip())
+    except requests.HTTPError as e:
+        if e.response.status_code == 500:
+            error_response = e.response.json()
+            if 'error' in error_response and 'data' in error_response['error']:
+                data_message = error_response['error']['data']
+                print(f"Data message: {data_message}")  # Essential message
+                if "lowest height is" in data_message:
+                    return int(data_message.split("lowest height is")[1].strip())
+        else:
+            print(f"HTTPError: {e}")  # Debugging output
+    except requests.RequestException as e:
+        print(f"RequestException: {e}")  # Debugging output
+        return None
+
+    return 1  # Return 1 if height 1 is available or no error is found
 
 # LOCKED
 def parse_timestamp(timestamp):
@@ -144,23 +182,23 @@ def generate_enhanced_scatter_chart(times, sizes, colors, output_image_file_base
     print(f"{bash_color_light_blue}Generating enhanced scatter chart...{bash_color_reset}")
     fig, ax = plt.subplots(figsize=(38, 20))
     scatter = ax.scatter(times, sizes, c=colors, s=10, alpha=0.6, edgecolors='w', linewidth=0.5)
-    ax.set_title(f'Enhanced Block Size Over Time (Scatter Chart)\nBlock Heights {lower_height} to {upper_height}', fontsize=28)
-    ax.set_xlabel('Time', fontsize=24)
-    ax.set_ylabel('Block Size (MB)', fontsize=24)
+    ax.set_title(f'Block Size Over Time (Enhanced Scatter Chart)\nBlock Heights {lower_height} to {upper_height}', fontsize=32)
+    ax.set_xlabel('Time', fontsize=28)
+    ax.set_ylabel('Block Size (MB)', fontsize=28)
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
     ax.xaxis.set_major_locator(mdates.DayLocator(interval=30))
     ax.xaxis.set_minor_locator(mdates.DayLocator(interval=1))
     ax.xaxis.set_major_locator(MaxNLocator(nbins=10))
-    ax.tick_params(axis='x', labelrotation=45, labelsize=20)
-    ax.tick_params(axis='y', labelsize=20)
+    ax.tick_params(axis='x', labelrotation=45, labelsize=24)
+    ax.tick_params(axis='y', labelsize=24)
     legend_patches = [
-        plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=py_color_green, markersize=10, label='< 1MB'),
-        plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=py_color_yellow, markersize=10, label='1MB to 2MB'),
-        plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=py_color_orange, markersize=10, label='2MB to 3MB'),
-        plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=py_color_red, markersize=10, label='3MB to 5MB'),
-        plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=py_color_magenta, markersize=10, label='> 5MB')
+        plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=py_color_green, markersize=12, label='< 1MB'),
+        plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=py_color_yellow, markersize=12, label='1MB to 2MB'),
+        plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=py_color_orange, markersize=12, label='2MB to 3MB'),
+        plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=py_color_red, markersize=12, label='3MB to 5MB'),
+        plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=py_color_magenta, markersize=12, label='> 5MB')
     ]
-    ax.legend(handles=legend_patches, fontsize=20)
+    ax.legend(handles=legend_patches, fontsize=24)
     plt.tight_layout()
     plt.savefig(f"{output_image_file_base}_enhanced_scatter_chart.png")
     print(f"{bash_color_light_green}Enhanced scatter chart generated successfully.{bash_color_reset}")
@@ -173,9 +211,11 @@ def generate_heatmap_with_additional_dimensions(times, sizes, output_image_file_
     heatmap_data = pd.pivot_table(data, values="sizes", index="hour", columns="day_of_week", aggfunc=np.mean)
     plt.figure(figsize=(38, 20))
     sns.heatmap(heatmap_data, cmap="YlGnBu", annot=True, fmt=".2f")
-    plt.title('Heatmap of Block Sizes by Hour and Day of Week', fontsize=28)
-    plt.xlabel('Day of Week', fontsize=24)
-    plt.ylabel('Hour of Day', fontsize=24)
+    plt.title('Heatmap of Block Sizes by Hour and Day of Week', fontsize=32)
+    plt.xlabel('Day of Week', fontsize=28)
+    plt.ylabel('Hour of Day', fontsize=28)
+    plt.xticks(ticks=[0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5], labels=["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"], fontsize=24)
+    plt.yticks(fontsize=24)
     plt.tight_layout()
     plt.savefig(f"{output_image_file_base}_heatmap_with_dimensions.png")
     print(f"{bash_color_light_green}Heatmap with additional dimensions generated successfully.{bash_color_reset}")
@@ -186,11 +226,15 @@ def generate_segmented_bar_chart(times, sizes, output_image_file_base):
     data["size_range"] = pd.cut(data["sizes"], bins=[0, 1, 2, 3, 5, np.inf], labels=["<1MB", "1MB-2MB", "2MB-3MB", "3MB-5MB", ">5MB"])
     size_ranges = data["size_range"].value_counts().sort_index()
     plt.figure(figsize=(38, 20))
-    size_ranges.plot(kind="bar", color=[py_color_green, py_color_yellow, py_color_orange, py_color_red, py_color_magenta])
-    plt.title('Segmented Bar Chart of Block Sizes', fontsize=28)
-    plt.xlabel('Block Size Range', fontsize=24)
-    plt.ylabel('Count', fontsize=24)
-    plt.xticks(rotation=0)
+    bars = size_ranges.plot(kind="bar", color=[py_color_green, py_color_yellow, py_color_orange, py_color_red, py_color_magenta])
+    plt.title('Segmented Bar Chart of Block Sizes', fontsize=32)
+    plt.xlabel('Block Size Range', fontsize=28)
+    plt.ylabel('Count', fontsize=28)
+    plt.xticks(rotation=0, fontsize=24)
+    plt.yticks(fontsize=24)
+    plt.yscale('log')
+    for bar in bars.patches:
+        bars.annotate(f'{bar.get_height():.0f}', (bar.get_x() + bar.get_width() / 2, bar.get_height()), ha='center', va='center', fontsize=24, color='black', xytext=(0, 10), textcoords='offset points')
     plt.tight_layout()
     plt.savefig(f"{output_image_file_base}_segmented_bar_chart.png")
     print(f"{bash_color_light_green}Segmented bar chart generated successfully.{bash_color_reset}")
