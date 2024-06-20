@@ -127,7 +127,6 @@ def process_block(height, endpoint_type, endpoint_url):
             "height": height,
             "size": float(np.random.uniform(0.01, 6.0)),  # Ensure size is a float
             "time": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-            "time": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
         }
         return (block_data["height"], block_data["size"], block_data["time"])
     except Exception as e:
