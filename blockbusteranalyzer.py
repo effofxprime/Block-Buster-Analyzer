@@ -137,7 +137,7 @@ def process_block(height, endpoint_type, endpoint_url):
             return None
 
         block_size = len(json.dumps(block_info))
-        block_size_mb = block_size / 1048576  # Convert size to MB
+        block_size_mb = block_size / 1048576
         block_time = parse_timestamp(block_info['result']['block']['header']['time'])
         return (height, block_size_mb, block_time)
     except Exception as e:
@@ -153,7 +153,7 @@ def signal_handler(sig, frame):
 
 # LOCKED
 def categorize_block(block, categories):
-    size = block["size"]
+    size = float(block["size"])  # Ensure size is treated as float
     if size < 1:
         categories["less_than_1MB"].append(block)
     elif 1 <= size < 2:
@@ -278,7 +278,7 @@ def generate_graphs_and_table(block_data, output_image_file_base, lower_height, 
     print(tabulate(table, headers="firstrow", tablefmt="grid"))
 
     times = [parse_timestamp(block["time"]) for block in block_data]
-    sizes = [float(block["size"]) for block in block_data]
+    sizes = [block["size"] for block in block_data]
     colors = [
         py_color_green if block["size"] < 1 else
         py_color_yellow if 1 <= block["size"] < 2 else
@@ -384,6 +384,7 @@ def main():
         executor.submit(process_block, height, connection_type, endpoint_url)
         for height in range(lower_height, upper_height + 1)
     ]
+
     completed = 0
     for future in as_completed(futures):
         if shutdown_event.is_set():
@@ -391,8 +392,7 @@ def main():
             sys.exit(0)
         result = future.result()
         if result:
-            height, size, time = result
-            block_data.append({"height": height, "size": size, "time": time})
+            block_data.append({"height": result[0], "size": result[1], "time": result[2]})
         completed += 1
         progress = (completed / total_blocks) * 100
         elapsed_time = tm.time() - start_script_time
@@ -420,8 +420,7 @@ def main():
         "greater_than_5MB": []
     }
 
-    for height, size, time in block_data:
-        block = {"height": height, "size": size, "time": time}
+    for block in block_data:
         categorize_block(block, categories)
 
     data = {
