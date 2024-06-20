@@ -141,6 +141,7 @@ def process_block(height, endpoint_type, endpoint_url):
         block_size = len(json.dumps(block_info))
         block_size_mb = block_size / 1048576
         block_time = parse_timestamp(block_info['result']['block']['header']['time'])
+        print(f"Debug: height={height}, block_size_mb={block_size_mb}, block_time={block_time}")  # Debug print
         return (height, block_size_mb, block_time)
     except Exception as e:
         print(f"Error fetching data for block {height}: {e}")
@@ -166,7 +167,6 @@ def categorize_block(block, categories):
         categories["3MB_to_5MB"].append(block)
     else:
         categories["greater_than_5MB"].append(block)
-
 
 # Chart generation functions
 def generate_scatter_chart(times, sizes, colors, output_image_file_base, lower_height, upper_height):
@@ -390,7 +390,9 @@ def main():
             sys.exit(0)
         result = future.result()
         if result:
-            block_data.append({"height": result[0], "size": float(result[1]), "time": result[2]})
+            height, size, time = result
+            print(f"Debug: height={height}, size={size}, time={time}")  # Debug print
+            block_data.append({"height": height, "size": float(size), "time": time})
         completed = len(block_data)
         progress = (completed / total_blocks) * 100
         elapsed_time = tm.time() - start_script_time
