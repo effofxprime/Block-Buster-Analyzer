@@ -84,7 +84,14 @@ def fetch_block_info(endpoint_type, endpoint_url, height):
         else:
             response = requests.get(f"{endpoint_url}/block?height={height}", timeout=10)
             response.raise_for_status()
-        return response.json()
+        block_info = response.json()
+        block_size = len(json.dumps(block_info))
+        block_size_mb = block_size / 1048576
+        return {
+            "height": height,
+            "size": block_size_mb,
+            "time": parse_timestamp(block_info['result']['block']['header']['time'])
+        }
     except requests.RequestException:
         return None
 
@@ -138,11 +145,7 @@ def process_block(height, endpoint_type, endpoint_url):
         if block_info is None:
             return None
 
-        block_size = len(json.dumps(block_info))
-        block_size_mb = block_size / 1048576
-        block_time = parse_timestamp(block_info['result']['block']['header']['time'])
-        print(f"Debug: height={height}, block_size_mb={block_size_mb}, block_time={block_time}")  # Debug print
-        return (height, block_size_mb, block_time)
+        return block_info
     except Exception as e:
         print(f"Error fetching data for block {height}: {e}")
         sys.exit(1)  # Exit on error
@@ -390,15 +393,13 @@ def main():
             sys.exit(0)
         result = future.result()
         if result:
-            height, size, time = result
-            print(f"Debug: height={height}, size={size}, time={time}")  # Debug print
-            block_data.append({"height": height, "size": float(size), "time": time})
-        completed = len(block_data)
-        progress = (completed / total_blocks) * 100
-        elapsed_time = tm.time() - start_script_time
-        estimated_total_time = elapsed_time / completed * total_blocks
-        time_left = estimated_total_time - elapsed_time
-        print(f"{bash_color_light_blue}Progress: {progress:.2f}% ({completed}/{total_blocks}) - Estimated time left: {timedelta(seconds=int(time_left))}", end='\r')
+            block_data.append(result)
+            completed = len(block_data)
+            progress = (completed / total_blocks) * 100
+            elapsed_time = tm.time() - start_script_time
+            estimated_total_time = elapsed_time / completed * total_blocks
+            time_left = estimated_total_time - elapsed_time
+            print(f"{bash_color_light_blue}Progress: {progress:.2f}% ({completed}/{total_blocks}) - Estimated time left: {timedelta(seconds=int(time_left))}", end='\r')
 
     executor.shutdown(wait=True)
 
@@ -419,8 +420,7 @@ def main():
         "greater_than_5MB": []
     }
 
-    for height, size, time in block_data:
-        block = {"height": height, "size": float(size), "time": time}  # Ensure size is float here
+    for block in block_data:
         categorize_block(block, categories)
 
     data = {
