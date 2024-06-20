@@ -9,7 +9,7 @@
 # @Date - 2024-06-06 15:19:00 UTC
 # @Last_Modified_By - Jonathan - Erialos
 # @Last_Modified_Time - 2024-06-21 15:19:00 UTC
-# @Version - 1.0.15
+# @Version - 1.0.16
 # @Description - This script analyzes block sizes in a blockchain and generates various visualizations.
 
 # LOCKED - Only edit when we need to add or remove imports
@@ -122,7 +122,7 @@ def find_lowest_height(endpoint_type, endpoint_url):
 
 # LOCKED
 def parse_timestamp(timestamp):
-    for fmt in ("%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S"):
+    for fmt in ("%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%S.%fZ"):
         try:
             return datetime.strptime(timestamp, fmt)
         except ValueError:
@@ -183,6 +183,7 @@ def generate_scatter_chart(times, sizes, colors, output_image_file_base, lower_h
     legend_patches = [
         plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=py_color_green, markersize=10, label='< 1MB'),
         plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=py_color_yellow, markersize=10, label='1MB to 2MB'),
+        plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=py_color_orange, markersize=10, label='2MB to 3MB'),
         plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=py_color_orange, markersize=10, label='2MB to 3MB'),
         plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=py_color_red, markersize=10, label='3MB to 5MB'),
         plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=py_color_magenta, markersize=10, label='> 5MB')
@@ -382,10 +383,11 @@ def main():
     print(f"{bash_color_dark_grey}\n{'='*40}\n{bash_color_reset}")
 
     with tqdm(total=(upper_height - lower_height + 1)) as pbar:
-        futures = {
-            executor.submit(process_block, height, connection_type, endpoint_url): height
+        futures = [
+            executor.submit(process_block, height, connection_type, endpoint_url)
             for height in range(lower_height, upper_height + 1, json_workers)
-        }
+        ]
+        error_count = 0
         for future in as_completed(futures):
             if shutdown_event.is_set():
                 print(f"{bash_color_red}Shutdown event detected. Exiting...{bash_color_reset}")
@@ -393,6 +395,8 @@ def main():
             result = future.result()
             if result:
                 block_data.append({"height": result[0], "size": float(result[1]), "time": result[2]})
+            else:
+                error_count += 1
             pbar.update(1)
             completed = pbar.n
             progress = (completed / total_blocks) * 100
@@ -400,6 +404,9 @@ def main():
             estimated_total_time = elapsed_time / completed * total_blocks
             time_left = estimated_total_time - elapsed_time
             print(f"{bash_color_light_blue}Progress: {progress:.2f}% ({completed}/{total_blocks}) - Estimated time left: {timedelta(seconds=int(time_left))}", end='\r')
+            if error_count > total_blocks * 0.1:  # Exiting if more than 10% errors
+                print(f"{bash_color_red}Too many errors fetching data. Exiting...{bash_color_reset}")
+                sys.exit(1)
 
     executor.shutdown(wait=True)
 
