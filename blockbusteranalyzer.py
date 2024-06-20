@@ -21,7 +21,7 @@ import matplotlib.pyplot as plt
 import threading
 import numpy as np
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 import matplotlib.dates as mdates
 from matplotlib.ticker import MaxNLocator
 import seaborn as sns
@@ -31,7 +31,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from statsmodels.tsa.seasonal import seasonal_decompose
 from tabulate import tabulate
 import re
-import time
+import time as tm
 import requests
 import requests_unixsocket
 from urllib.parse import quote_plus
@@ -256,6 +256,7 @@ def generate_graphs_and_table(block_data, output_image_file_base, lower_height, 
 
     total_blocks = len(block_data)
     table = [
+        [f"{bash_color_light_blue}Category{bash_color_reset}", f"{bash_color_light_blue}Count{bash_color_reset}", f"{bash_color_light_blue}Percentage{bash_color_reset}", f"{bash_color_light_blue}Average Size (MB){bash_color_reset}", f"{bash_color_light_blue}Min Size (MB){bash_color_reset}", f"{bash_color_light_blue}Max Size (MB){bash_color_reset}"],
         [f"{bash_color_green}Less than 1MB{bash_color_reset}", f"{bash_color_green}{len(categories['less_than_1MB']):,}{bash_color_reset}", f"{bash_color_green}{len(categories['less_than_1MB']) / total_blocks * 100:.2f}%{bash_color_reset}", f"{bash_color_green}{calculate_avg([b['size'] for b in categories['less_than_1MB']]):.2f}{bash_color_reset}", f"{bash_color_green}{min([b['size'] for b in categories['less_than_1MB']], default=0):.2f}{bash_color_reset}", f"{bash_color_green}{max([b['size'] for b in categories['less_than_1MB']], default=0):.2f}{bash_color_reset}"],
         [f"{bash_color_yellow}1MB to 2MB{bash_color_reset}", f"{bash_color_yellow}{len(categories['1MB_to_2MB']):,}{bash_color_reset}", f"{bash_color_yellow}{len(categories['1MB_to_2MB']) / total_blocks * 100:.2f}%{bash_color_reset}", f"{bash_color_yellow}{calculate_avg([b['size'] for b in categories['1MB_to_2MB']]):.2f}{bash_color_reset}", f"{bash_color_yellow}{min([b['size'] for b in categories['1MB_to_2MB']], default=0):.2f}{bash_color_reset}", f"{bash_color_yellow}{max([b['size'] for b in categories['1MB_to_2MB']], default=0):.2f}{bash_color_reset}"],
         [f"{bash_color_orange}2MB to 3MB{bash_color_reset}", f"{bash_color_orange}{len(categories['2MB_to_3MB']):,}{bash_color_reset}", f"{bash_color_orange}{len(categories['2MB_to_3MB']) / total_blocks * 100:.2f}%{bash_color_reset}", f"{bash_color_orange}{calculate_avg([b['size'] for b in categories['2MB_to_3MB']]):.2f}{bash_color_reset}", f"{bash_color_orange}{min([b['size'] for b in categories['2MB_to_3MB']], default=0):.2f}{bash_color_reset}", f"{bash_color_orange}{max([b['size'] for b in categories['2MB_to_3MB']], default=0):.2f}{bash_color_reset}"],
@@ -263,7 +264,7 @@ def generate_graphs_and_table(block_data, output_image_file_base, lower_height, 
         [f"{bash_color_magenta}Greater than 5MB{bash_color_reset}", f"{bash_color_magenta}{len(categories['greater_than_5MB']):,}{bash_color_reset}", f"{bash_color_magenta}{len(categories['greater_than_5MB']) / total_blocks * 100:.2f}%{bash_color_reset}", f"{bash_color_magenta}{calculate_avg([b['size'] for b in categories['greater_than_5MB']]):.2f}{bash_color_reset}", f"{bash_color_magenta}{min([b['size'] for b in categories['greater_than_5MB']], default=0):.2f}{bash_color_reset}", f"{bash_color_magenta}{max([b['size'] for b in categories['greater_than_5MB']], default=0):.2f}{bash_color_reset}"]
     ]
 
-    print(tabulate(table, headers=["Category", "Count", "Percentage", "Average Size (MB)", "Min Size (MB)", "Max Size (MB)"], tablefmt="grid"))
+    print(tabulate(table, headers="firstrow", tablefmt="grid"))
 
     times = [parse_timestamp(block["time"]) for block in block_data]
     sizes = [block["size"] for block in block_data]
@@ -331,7 +332,7 @@ def main():
             break
         else:
             print(f"{bash_color_yellow}RPC endpoint unreachable. Retrying {attempt + 1}/{retries}...{bash_color_reset}")
-            time.sleep(5)
+            tm.sleep(5)
     else:
         print(f"{bash_color_red}RPC endpoint unreachable after multiple attempts. Exiting.{bash_color_reset}")
         sys.exit(1)
@@ -364,7 +365,7 @@ def main():
     output_image_file_base = f"block_sizes_{lower_height}_to_{upper_height}_{start_time.strftime('%Y%m%d_%H%M%S')}"
 
     total_blocks = upper_height - lower_height + 1
-    start_script_time = time.time()
+    start_script_time = tm.time()
 
     print(f"{bash_color_dark_grey}\n{'='*40}\n{bash_color_reset}")
 
@@ -383,7 +384,7 @@ def main():
             pbar.update(1)
             completed = pbar.n
             progress = (completed / total_blocks) * 100
-            elapsed_time = time.time() - start_script_time
+            elapsed_time = tm.time() - start_script_time
             estimated_total_time = elapsed_time / completed * total_blocks
             time_left = estimated_total_time - elapsed_time
             print(f"{bash_color_light_blue}Progress: {progress:.2f}% ({completed}/{total_blocks}) - Estimated time left: {timedelta(seconds=int(time_left))}", end='\r')
