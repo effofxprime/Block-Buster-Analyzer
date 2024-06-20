@@ -122,6 +122,8 @@ def find_lowest_height(endpoint_type, endpoint_url):
 # LOCKED
 def parse_timestamp(timestamp):
     try:
+        if isinstance(timestamp, datetime):
+            return timestamp
         if '.' in timestamp:
             timestamp = timestamp.split('.')[0] + 'Z'
         return datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%SZ")
