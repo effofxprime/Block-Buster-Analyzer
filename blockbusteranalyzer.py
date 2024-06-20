@@ -32,6 +32,8 @@ import time as tm
 import requests
 import requests_unixsocket
 from urllib.parse import quote_plus
+from tqdm import tqdm
+from http.client import IncompleteRead
 
 # LOCKED
 # Define colors for console output
@@ -76,24 +78,21 @@ def check_endpoint(endpoint_type, endpoint_url):
         return False
 
 def fetch_block_info(endpoint_type, endpoint_url, height):
-    try:
-        if endpoint_type == "socket":
-            session = requests_unixsocket.Session()
-            encoded_url = f"http+unix://{quote_plus(endpoint_url)}/block?height={height}"
-            response = session.get(encoded_url, timeout=10)
-        else:
-            response = requests.get(f"{endpoint_url}/block?height={height}", timeout=10)
-            response.raise_for_status()
-        block_info = response.json()
-        block_size = len(json.dumps(block_info))
-        block_size_mb = block_size / 1048576
-        return {
-            "height": height,
-            "size": block_size_mb,
-            "time": parse_timestamp(block_info['result']['block']['header']['time'])
-        }
-    except requests.RequestException:
-        return None
+    retries = 3
+    for attempt in range(retries):
+        try:
+            if endpoint_type == "socket":
+                session = requests_unixsocket.Session()
+                encoded_url = f"http+unix://{quote_plus(endpoint_url)}/block?height={height}"
+                response = session.get(encoded_url, timeout=10)
+            else:
+                response = requests.get(f"{endpoint_url}/block?height={height}", timeout=10)
+                response.raise_for_status()
+            return response.json()
+        except (requests.RequestException, requests.exceptions.ConnectionError, IncompleteRead) as e:
+            print(f"Error fetching block {height}: {e}. Attempt {attempt + 1}/{retries}...")
+            tm.sleep(5)
+    return None
 
 def find_lowest_height(endpoint_type, endpoint_url):
     try:
@@ -107,7 +106,7 @@ def find_lowest_height(endpoint_type, endpoint_url):
         block_info = response.json()
         if 'error' in block_info and 'data' in block_info['error']:
             data_message = block_info['error']['data']
-            print(f"Data message: {data_message}")  # Essential message
+            print(f"Data message: {data_message}")
             if "lowest height is" in data_message:
                 return int(data_message.split("lowest height is")[1].strip())
     except requests.HTTPError as e:
@@ -115,7 +114,7 @@ def find_lowest_height(endpoint_type, endpoint_url):
             error_response = e.response.json()
             if 'error' in error_response and 'data' in error_response['error']:
                 data_message = error_response['error']['data']
-                print(f"Data message: {data_message}")  # Essential message
+                print(f"Data message: {data_message}")
                 if "lowest height is" in data_message:
                     return int(data_message.split("lowest height is")[1].strip())
         else:
@@ -124,7 +123,7 @@ def find_lowest_height(endpoint_type, endpoint_url):
         print(f"RequestException: {e}")  # Debugging output
         return None
 
-    return 1  # Return 1 if height 1 is available or no error is found
+    return 1
 
 # LOCKED
 def parse_timestamp(timestamp):
@@ -145,10 +144,13 @@ def process_block(height, endpoint_type, endpoint_url):
         if block_info is None:
             return None
 
-        return block_info
+        block_size = len(json.dumps(block_info))
+        block_size_mb = block_size / 1048576
+        block_time = parse_timestamp(block_info['result']['block']['header']['time'])
+        return (height, block_size_mb, block_time)
     except Exception as e:
         print(f"Error fetching data for block {height}: {e}")
-        sys.exit(1)  # Exit on error
+        return None
 
 def signal_handler(sig, frame):
     print(f"{bash_color_red}\nProcess interrupted. Exiting gracefully...{bash_color_reset}")
@@ -159,7 +161,7 @@ def signal_handler(sig, frame):
 
 # LOCKED
 def categorize_block(block, categories):
-    size = float(block["size"])  # Ensure size is treated as float
+    size = float(block["size"])
     if size < 1:
         categories["less_than_1MB"].append(block)
     elif 1 <= size < 2:
@@ -329,7 +331,7 @@ def main():
         
         # Convert sizes to float and times to datetime
         for block in data["block_data"]:
-            block["size"] = float(block["size"])  # Ensure size is a float
+            block["size"] = float(block["size"])
             block["time"] = parse_timestamp(block["time"])
 
         # Infer lower and upper height from JSON file name
@@ -383,23 +385,21 @@ def main():
 
     print(f"{bash_color_dark_grey}\n{'='*40}\n{bash_color_reset}")
 
-    futures = [
-        executor.submit(process_block, height, connection_type, endpoint_url)
-        for height in range(lower_height, upper_height + 1, json_workers)
-    ]
-    for future in as_completed(futures):
+    heights = range(lower_height, upper_height + 1)
+    futures = [executor.submit(process_block, height, connection_type, endpoint_url) for height in heights]
+    for future in tqdm(as_completed(futures), total=len(heights), desc="Fetching blocks"):
         if shutdown_event.is_set():
             print(f"{bash_color_red}Shutdown event detected. Exiting...{bash_color_reset}")
             sys.exit(0)
         result = future.result()
         if result:
-            block_data.append(result)
-            completed = len(block_data)
-            progress = (completed / total_blocks) * 100
-            elapsed_time = tm.time() - start_script_time
-            estimated_total_time = elapsed_time / completed * total_blocks
-            time_left = estimated_total_time - elapsed_time
-            print(f"{bash_color_light_blue}Progress: {progress:.2f}% ({completed}/{total_blocks}) - Estimated time left: {timedelta(seconds=int(time_left))}", end='\r')
+            block_data.append({"height": result[0], "size": result[1], "time": result[2]})
+        completed = len(block_data)
+        progress = (completed / total_blocks) * 100
+        elapsed_time = tm.time() - start_script_time
+        estimated_total_time = elapsed_time / completed * total_blocks if completed else 0
+        time_left = estimated_total_time - elapsed_time
+        print(f"{bash_color_light_blue}Progress: {progress:.2f}% ({completed}/{total_blocks}) - Estimated time left: {timedelta(seconds=int(time_left))}", end='\r')
 
     executor.shutdown(wait=True)
 
@@ -420,7 +420,8 @@ def main():
         "greater_than_5MB": []
     }
 
-    for block in block_data:
+    for height, size, time in block_data:
+        block = {"height": height, "size": size, "time": time}
         categorize_block(block, categories)
 
     data = {
@@ -435,7 +436,7 @@ def main():
     }
 
     # Save data to JSON file
-    json_file_path = f"{output_image_file_base}_{lower_height}-{upper_height}.json"
+    json_file_path = f"{output_image_file_base}.json"
     with open(json_file_path, 'w') as f:
         json.dump(data, f, default=str)
 
