@@ -127,6 +127,7 @@ def process_block(height, endpoint_type, endpoint_url):
             "height": height,
             "size": float(np.random.uniform(0.01, 6.0)),  # Ensure size is a float
             "time": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            "time": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
         }
         return (block_data["height"], block_data["size"], block_data["time"])
     except Exception as e:
@@ -267,7 +268,7 @@ def generate_graphs_and_table(block_data, output_image_file_base, lower_height, 
     print(tabulate(table, headers="firstrow", tablefmt="grid"))
 
     times = [parse_timestamp(block["time"]) for block in block_data]
-    sizes = [block["size"] for block in block_data]
+    sizes = [float(block["size"]) for block in block_data]
     colors = [
         py_color_green if block["size"] < 1 else
         py_color_yellow if 1 <= block["size"] < 2 else
@@ -380,7 +381,7 @@ def main():
                 sys.exit(0)
             result = future.result()
             if result:
-                block_data.append({"height": result[0], "size": result[1], "time": result[2]})
+                block_data.append({"height": result[0], "size": float(result[1]), "time": result[2]})
             pbar.update(1)
             completed = pbar.n
             progress = (completed / total_blocks) * 100
