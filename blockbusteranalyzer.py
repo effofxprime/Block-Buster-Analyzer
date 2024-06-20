@@ -9,7 +9,7 @@
 # @Date - 2024-06-06 15:19:00 UTC
 # @Last_Modified_By - Jonathan - Erialos
 # @Last_Modified_Time - 2024-06-21 15:19:00 UTC
-# @Version - 1.0.16
+# @Version - 1.0.17
 # @Description - This script analyzes block sizes in a blockchain and generates various visualizations.
 
 # LOCKED - Only edit when we need to add or remove imports
@@ -153,7 +153,7 @@ def signal_handler(sig, frame):
 
 # LOCKED
 def categorize_block(block, categories):
-    size = float(block["size"])  # Ensure size is treated as float
+    size = block["size"]
     if size < 1:
         categories["less_than_1MB"].append(block)
     elif 1 <= size < 2:
@@ -277,7 +277,7 @@ def generate_graphs_and_table(block_data, output_image_file_base, lower_height, 
 
     print(tabulate(table, headers="firstrow", tablefmt="grid"))
 
-    times = [parse_timestamp(block["time"]) for block in block_data]
+    times = [block["time"] for block in block_data]
     sizes = [block["size"] for block in block_data]
     colors = [
         py_color_green if block["size"] < 1 else
@@ -322,9 +322,10 @@ def main():
         with open(json_file_path) as f:
             data = json.load(f)
         
-        # Convert sizes to float
+        # Convert sizes to float and times to datetime
         for block in data["block_data"]:
             block["size"] = float(block["size"])
+            block["time"] = parse_timestamp(block["time"])
 
         # Infer lower and upper height from JSON file name
         match = re.search(r"(\d+)-(\d+)", json_file_path)
@@ -382,18 +383,16 @@ def main():
 
     futures = [
         executor.submit(process_block, height, connection_type, endpoint_url)
-        for height in range(lower_height, upper_height + 1)
+        for height in range(lower_height, upper_height + 1, json_workers)
     ]
-
-    completed = 0
     for future in as_completed(futures):
         if shutdown_event.is_set():
             print(f"{bash_color_red}Shutdown event detected. Exiting...{bash_color_reset}")
             sys.exit(0)
         result = future.result()
         if result:
-            block_data.append({"height": result[0], "size": result[1], "time": result[2]})
-        completed += 1
+            block_data.append({"height": result[0], "size": float(result[1]), "time": result[2]})
+        completed = len(block_data)
         progress = (completed / total_blocks) * 100
         elapsed_time = tm.time() - start_script_time
         estimated_total_time = elapsed_time / completed * total_blocks
@@ -420,7 +419,8 @@ def main():
         "greater_than_5MB": []
     }
 
-    for block in block_data:
+    for height, size, time in block_data:
+        block = {"height": height, "size": size, "time": time}
         categorize_block(block, categories)
 
     data = {
