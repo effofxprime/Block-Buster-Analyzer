@@ -410,7 +410,7 @@ def main():
     }
 
     for height, size, time in block_data:
-        block = {"height": height, "size": size, "time": time}
+        block = {"height": height, "size": float(size), "time": time}
         categorize_block(block, categories)
 
     data = {
