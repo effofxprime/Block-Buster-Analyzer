@@ -155,7 +155,7 @@ def signal_handler(sig, frame):
 
 # LOCKED
 def categorize_block(block, categories):
-    size = block["size"]
+    size = float(block["size"])  # Ensure size is treated as float
     if size < 1:
         categories["less_than_1MB"].append(block)
     elif 1 <= size < 2:
@@ -166,6 +166,7 @@ def categorize_block(block, categories):
         categories["3MB_to_5MB"].append(block)
     else:
         categories["greater_than_5MB"].append(block)
+
 
 # Chart generation functions
 def generate_scatter_chart(times, sizes, colors, output_image_file_base, lower_height, upper_height):
@@ -318,7 +319,6 @@ def main():
     json_file_path = sys.argv[7] if len(sys.argv) == 8 else None
     output_image_file_base = os.path.splitext(json_file_path)[0] if json_file_path else "output"
 
-    # LOCKED
     # If a JSON file is specified, skip fetching and directly process the JSON file
     if json_file_path and os.path.exists(json_file_path):
         with open(json_file_path) as f:
@@ -326,7 +326,7 @@ def main():
         
         # Convert sizes to float and times to datetime
         for block in data["block_data"]:
-            block["size"] = float(block["size"])
+            block["size"] = float(block["size"])  # Ensure size is a float
             block["time"] = parse_timestamp(block["time"])
 
         # Infer lower and upper height from JSON file name
@@ -338,7 +338,6 @@ def main():
         generate_graphs_and_table(data["block_data"], output_image_file_base, lower_height, upper_height)
         return
 
-    # LOCKED
     # Check endpoint availability
     retries = 3
     for attempt in range(retries):
@@ -351,7 +350,6 @@ def main():
         print(f"{bash_color_red}RPC endpoint unreachable after multiple attempts. Exiting.{bash_color_reset}")
         sys.exit(1)
 
-    # LOCKED
     # Find the lowest available height if necessary
     if lower_height == 0:
         lowest_height = find_lowest_height(connection_type, endpoint_url)
@@ -368,7 +366,6 @@ def main():
     global executor
     executor = ThreadPoolExecutor(max_workers=fetch_workers)
 
-    # LOCKED
     # Fetch block data
     block_data = []
     print(f"{bash_color_light_blue}\nFetching block information. This may take a while for large ranges. Please wait...{bash_color_reset}")
@@ -407,7 +404,6 @@ def main():
         print(f"{bash_color_red}Shutdown event detected. Exiting...{bash_color_reset}")
         sys.exit(0)
 
-    # LOCKED
     end_time = datetime.now(timezone.utc)
     actual_time = end_time - start_time
     print(f"{bash_color_light_green}\nFetching completed in {actual_time}. Saving data...{bash_color_reset}")
@@ -422,7 +418,7 @@ def main():
     }
 
     for height, size, time in block_data:
-        block = {"height": height, "size": size, "time": time}
+        block = {"height": height, "size": float(size), "time": time}  # Ensure size is float here
         categorize_block(block, categories)
 
     data = {
@@ -436,13 +432,11 @@ def main():
         }
     }
 
-    # LOCKED
     # Save data to JSON file
     json_file_path = f"{output_image_file_base}_{lower_height}-{upper_height}.json"
     with open(json_file_path, 'w') as f:
         json.dump(data, f, default=str)
 
-    # LOCKED
     # Generate graphs and table
     generate_graphs_and_table(block_data, output_image_file_base, lower_height, upper_height)
 
