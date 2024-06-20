@@ -25,10 +25,8 @@ from datetime import datetime, timedelta, timezone
 import matplotlib.dates as mdates
 from matplotlib.ticker import MaxNLocator
 import seaborn as sns
-import networkx as nx
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from statsmodels.tsa.seasonal import seasonal_decompose
 from tabulate import tabulate
 import re
 import time as tm
@@ -78,6 +76,19 @@ def check_endpoint(endpoint_type, endpoint_url):
     except requests.RequestException:
         return False
 
+def fetch_block_info(endpoint_type, endpoint_url, height):
+    try:
+        if endpoint_type == "socket":
+            session = requests_unixsocket.Session()
+            encoded_url = f"http+unix://{quote_plus(endpoint_url)}/block?height={height}"
+            response = session.get(encoded_url, timeout=10)
+        else:
+            response = requests.get(f"{endpoint_url}/block?height={height}", timeout=10)
+            response.raise_for_status()
+        return response.json()
+    except requests.RequestException:
+        return None
+
 def find_lowest_height(endpoint_type, endpoint_url):
     try:
         if endpoint_type == "socket":
@@ -122,13 +133,14 @@ def process_block(height, endpoint_type, endpoint_url):
     if shutdown_event.is_set():
         return None
     try:
-        # Simulate fetching block data
-        block_data = {
-            "height": height,
-            "size": float(np.random.uniform(0.01, 6.0)),  # Ensure size is a float
-            "time": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        }
-        return (block_data["height"], block_data["size"], block_data["time"])
+        block_info = fetch_block_info(endpoint_type, endpoint_url, height)
+        if block_info is None:
+            return None
+
+        block_size = len(json.dumps(block_info))
+        block_size_mb = block_size / 1048576
+        block_time = parse_timestamp(block_info['result']['block']['header']['time'])
+        return (height, block_size_mb, block_time)
     except Exception as e:
         print(f"Error fetching data for block {height}: {e}")
         return None
@@ -171,6 +183,7 @@ def generate_scatter_chart(times, sizes, colors, output_image_file_base, lower_h
     legend_patches = [
         plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=py_color_green, markersize=10, label='< 1MB'),
         plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=py_color_yellow, markersize=10, label='1MB to 2MB'),
+        plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=py_color_orange, markersize=10, label='2MB to 3MB'),
         plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=py_color_orange, markersize=10, label='2MB to 3MB'),
         plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=py_color_red, markersize=10, label='3MB to 5MB'),
         plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=py_color_magenta, markersize=10, label='> 5MB')
