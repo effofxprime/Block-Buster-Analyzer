@@ -8,7 +8,7 @@
 # @Twitter - https://twitter.com/ErialosOfAstora
 # @Date - 2024-06-06 15:19:00 UTC
 # @Last_Modified_By - Jonathan - Erialos
-# @Last_Modified_Time - 2024-06-19 17:39:00 UTC
+# @Last_Modified_Time - 2024-06-21 15:19:00 UTC
 # @Version - 1.0.15
 # @Description - This script analyzes block sizes in a blockchain and generates various visualizations.
 
@@ -21,7 +21,7 @@ import matplotlib.pyplot as plt
 import threading
 import numpy as np
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime
 import matplotlib.dates as mdates
 from matplotlib.ticker import MaxNLocator
 import seaborn as sns
@@ -31,6 +31,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from statsmodels.tsa.seasonal import seasonal_decompose
 from tabulate import tabulate
 import re
+import time
 import requests
 import requests_unixsocket
 from urllib.parse import quote_plus
@@ -42,9 +43,9 @@ bash_color_red = "\033[91m"
 bash_color_green = "\033[92m"
 bash_color_yellow = "\033[93m"
 bash_color_orange = "\033[33m"
-bash_color_magenta = "\033[38;5;13m"  # Corrected magenta
+bash_color_magenta = "\033[38;5;13m"
 bash_color_blue = "\033[34m"
-bash_color_light_blue = "\033[38;5;123m"  # Corrected light blue
+bash_color_light_blue = "\033[38;5;123m"
 bash_color_teal = "\033[36m"
 bash_color_light_green = "\033[92m"
 bash_color_dark_grey = "\033[38;5;245m"
@@ -158,15 +159,15 @@ def generate_scatter_chart(times, sizes, colors, output_image_file_base, lower_h
     print(f"{bash_color_light_blue}Generating scatter chart...{bash_color_reset}")
     fig, ax = plt.subplots(figsize=(38, 20))
     scatter = ax.scatter(times, sizes, c=colors, s=10)
-    ax.set_title(f'Block Size Over Time (Scatter Chart)\nBlock Heights {lower_height} to {upper_height}', fontsize=28)
-    ax.set_xlabel('Time', fontsize=24)
-    ax.set_ylabel('Block Size (MB)', fontsize=24)
+    ax.set_title(f'Block Size Over Time (Scatter Chart)\nBlock Heights {lower_height} to {upper_height}', fontsize=32)
+    ax.set_xlabel('Time', fontsize=32)
+    ax.set_ylabel('Block Size (MB)', fontsize=32)
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
     ax.xaxis.set_major_locator(mdates.DayLocator(interval=30))
     ax.xaxis.set_minor_locator(mdates.DayLocator(interval=1))
     ax.xaxis.set_major_locator(MaxNLocator(nbins=10))
-    ax.tick_params(axis='x', labelrotation=45, labelsize=20)
-    ax.tick_params(axis='y', labelsize=20)
+    ax.tick_params(axis='x', labelrotation=45, labelsize=32)
+    ax.tick_params(axis='y', labelsize=32)
     legend_patches = [
         plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=py_color_green, markersize=10, label='< 1MB'),
         plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=py_color_yellow, markersize=10, label='1MB to 2MB'),
@@ -174,7 +175,7 @@ def generate_scatter_chart(times, sizes, colors, output_image_file_base, lower_h
         plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=py_color_red, markersize=10, label='3MB to 5MB'),
         plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=py_color_magenta, markersize=10, label='> 5MB')
     ]
-    ax.legend(handles=legend_patches, fontsize=20)
+    ax.legend(handles=legend_patches, fontsize=32)
     plt.tight_layout()
     plt.savefig(f"{output_image_file_base}_scatter_chart.png")
     print(f"{bash_color_light_green}Scatter chart generated successfully.{bash_color_reset}")
@@ -183,15 +184,15 @@ def generate_enhanced_scatter_chart(times, sizes, colors, output_image_file_base
     print(f"{bash_color_light_blue}Generating enhanced scatter chart...{bash_color_reset}")
     fig, ax = plt.subplots(figsize=(38, 20))
     scatter = ax.scatter(times, sizes, c=colors, s=10, alpha=0.6, edgecolors='w', linewidth=0.5)
-    ax.set_title(f'Block Size Over Time (Enhanced Scatter Chart)\nBlock Heights {lower_height} to {upper_height}', fontsize=28)
-    ax.set_xlabel('Time', fontsize=24)
-    ax.set_ylabel('Block Size (MB)', fontsize=24)
+    ax.set_title(f'Block Size Over Time (Enhanced Scatter Chart)\nBlock Heights {lower_height} to {upper_height}', fontsize=32)
+    ax.set_xlabel('Time', fontsize=32)
+    ax.set_ylabel('Block Size (MB)', fontsize=32)
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
     ax.xaxis.set_major_locator(mdates.DayLocator(interval=30))
     ax.xaxis.set_minor_locator(mdates.DayLocator(interval=1))
     ax.xaxis.set_major_locator(MaxNLocator(nbins=10))
-    ax.tick_params(axis='x', labelrotation=45, labelsize=20)
-    ax.tick_params(axis='y', labelsize=20)
+    ax.tick_params(axis='x', labelrotation=45, labelsize=32)
+    ax.tick_params(axis='y', labelsize=32)
     legend_patches = [
         plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=py_color_green, markersize=10, label='< 1MB'),
         plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=py_color_yellow, markersize=10, label='1MB to 2MB'),
@@ -199,7 +200,7 @@ def generate_enhanced_scatter_chart(times, sizes, colors, output_image_file_base
         plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=py_color_red, markersize=10, label='3MB to 5MB'),
         plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=py_color_magenta, markersize=10, label='> 5MB')
     ]
-    ax.legend(handles=legend_patches, fontsize=20)
+    ax.legend(handles=legend_patches, fontsize=32)
     plt.tight_layout()
     plt.savefig(f"{output_image_file_base}_enhanced_scatter_chart.png")
     print(f"{bash_color_light_green}Enhanced scatter chart generated successfully.{bash_color_reset}")
@@ -209,14 +210,15 @@ def generate_heatmap_with_additional_dimensions(times, sizes, output_image_file_
     data = pd.DataFrame({'times': pd.to_datetime(times), 'sizes': sizes})
     data["hour"] = data["times"].dt.hour
     data["day_of_week"] = data["times"].dt.dayofweek
-    heatmap_data = pd.pivot_table(data, values="sizes", index="hour", columns="day_of_week", aggfunc=np.mean)
+    data["day_of_week_name"] = data["times"].dt.day_name()
+    heatmap_data = pd.pivot_table(data, values="sizes", index="hour", columns="day_of_week_name", aggfunc=np.mean)
     plt.figure(figsize=(38, 20))
-    sns.heatmap(heatmap_data, cmap="YlGnBu", annot=True, fmt=".2f", annot_kws={"size": 16})
-    plt.title('Heatmap of Block Sizes by Hour and Day of Week', fontsize=28)
-    plt.xlabel('Day of Week', fontsize=24)
-    plt.ylabel('Hour of Day', fontsize=24)
-    plt.xticks(ticks=[0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5], labels=['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'], fontsize=20)
-    plt.yticks(fontsize=20)
+    sns.heatmap(heatmap_data, cmap="YlGnBu", annot=True, fmt=".2f")
+    plt.title('Heatmap of Block Sizes by Hour and Day of Week', fontsize=32)
+    plt.xlabel('Day of Week', fontsize=32)
+    plt.ylabel('Hour of Day', fontsize=32)
+    plt.xticks(ticks=[0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5], labels=['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'], fontsize=32)
+    plt.yticks(fontsize=32)
     plt.tight_layout()
     plt.savefig(f"{output_image_file_base}_heatmap_with_dimensions.png")
     print(f"{bash_color_light_green}Heatmap with additional dimensions generated successfully.{bash_color_reset}")
@@ -228,13 +230,13 @@ def generate_segmented_bar_chart(times, sizes, output_image_file_base):
     size_ranges = data["size_range"].value_counts().sort_index()
     plt.figure(figsize=(38, 20))
     bars = size_ranges.plot(kind="bar", color=[py_color_green, py_color_yellow, py_color_orange, py_color_red, py_color_magenta], log=True)
-    plt.title('Segmented Bar Chart of Block Sizes', fontsize=28)
-    plt.xlabel('Block Size Range', fontsize=24)
-    plt.ylabel('Count', fontsize=24)
-    plt.xticks(rotation=0, fontsize=20)
-    plt.yticks(fontsize=20)
+    plt.title('Segmented Bar Chart of Block Sizes', fontsize=32)
+    plt.xlabel('Block Size Range', fontsize=32)
+    plt.ylabel('Count', fontsize=32)
+    plt.xticks(rotation=0, fontsize=32)
+    plt.yticks(fontsize=32)
     for bar in bars.patches:
-        bars.annotate(f'{int(bar.get_height())}', (bar.get_x() + bar.get_width() / 2, bar.get_height()), ha='center', va='bottom', fontsize=20)
+        bars.annotate(f'{int(bar.get_height())}', (bar.get_x() + bar.get_width() / 2, bar.get_height()), ha='center', va='bottom', fontsize=32)
     plt.tight_layout()
     plt.savefig(f"{output_image_file_base}_segmented_bar_chart.png")
     print(f"{bash_color_light_green}Segmented bar chart generated successfully.{bash_color_reset}")
@@ -323,25 +325,6 @@ def main():
 
     # LOCKED
     # Check endpoint availability
-    if not check_endpoint(connection_type, endpoint_url):
-        print(f"{bash_color_red}Error: Unable to reach the endpoint {endpoint_url}{bash_color_reset}")
-        sys.exit(1)
-
-    # LOCKED
-    # Find the lowest available height if necessary
-    if lower_height == 0:
-        lowest_height = find_lowest_height(connection_type, endpoint_url)
-        lower_height = lowest_height
-
-    global executor
-    executor = ThreadPoolExecutor(max_workers=fetch_workers)
-
-    # LOCKED
-    # Fetch block data
-    block_data = []
-    print(f"{bash_color_light_blue}\nChecking the specified starting block height...{bash_color_reset}")
-
-    # Health check
     retries = 3
     for attempt in range(retries):
         if check_endpoint(connection_type, endpoint_url):
@@ -353,19 +336,26 @@ def main():
         print(f"{bash_color_red}RPC endpoint unreachable after multiple attempts. Exiting.{bash_color_reset}")
         sys.exit(1)
 
-    block_info = process_block(lower_height, connection_type, endpoint_url)
-    if block_info is None:
-        print(f"{bash_color_yellow}Block height {lower_height} does not exist. Finding the earliest available block height...{bash_color_reset}")
-        lower_height = find_lowest_height(connection_type, endpoint_url)
-        if lower_height is None:
+    # LOCKED
+    # Find the lowest available height if necessary
+    if lower_height == 0:
+        lowest_height = find_lowest_height(connection_type, endpoint_url)
+        if lowest_height is None:
             print(f"{bash_color_red}Failed to determine the earliest block height. Exiting.{bash_color_reset}")
             sys.exit(1)
-        print(f"{bash_color_light_blue}Using earliest available block height: {lower_height}{bash_color_reset}")
+        print(f"{bash_color_light_blue}Using earliest available block height: {lowest_height}{bash_color_reset}")
+        lower_height = lowest_height
 
     if lower_height > upper_height:
         print(f"{bash_color_red}The specified lower height {lower_height} is greater than the specified upper height {upper_height}. Exiting.{bash_color_reset}")
         sys.exit(1)
 
+    global executor
+    executor = ThreadPoolExecutor(max_workers=fetch_workers)
+
+    # LOCKED
+    # Fetch block data
+    block_data = []
     print(f"{bash_color_light_blue}\nFetching block information. This may take a while for large ranges. Please wait...{bash_color_reset}")
 
     start_time = datetime.utcnow()
@@ -405,6 +395,10 @@ def main():
         sys.exit(0)
 
     # LOCKED
+    end_time = datetime.utcnow()
+    actual_time = end_time - start_time
+    print(f"{bash_color_light_green}\nFetching completed in {actual_time}. Saving data...{bash_color_reset}")
+
     # Categorize blocks and prepare data for JSON output
     categories = {
         "less_than_1MB": [],
