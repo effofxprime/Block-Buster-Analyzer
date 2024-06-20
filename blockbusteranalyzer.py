@@ -122,12 +122,12 @@ def find_lowest_height(endpoint_type, endpoint_url):
 
 # LOCKED
 def parse_timestamp(timestamp):
-    for fmt in ("%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%S.%f%z"):
-        try:
-            return datetime.strptime(timestamp, fmt)
-        except ValueError:
-            continue
-    raise ValueError(f"time data '{timestamp}' does not match any known format")
+    try:
+        if '.' in timestamp:
+            timestamp = timestamp.split('.')[0] + 'Z'
+        return datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%SZ")
+    except ValueError:
+        raise ValueError(f"time data '{timestamp}' does not match any known format")
 
 def process_block(height, endpoint_type, endpoint_url):
     if shutdown_event.is_set():
@@ -143,7 +143,7 @@ def process_block(height, endpoint_type, endpoint_url):
         return (height, block_size_mb, block_time)
     except Exception as e:
         print(f"Error fetching data for block {height}: {e}")
-        return None
+        sys.exit(1)  # Exit on error
 
 def signal_handler(sig, frame):
     print(f"{bash_color_red}\nProcess interrupted. Exiting gracefully...{bash_color_reset}")
@@ -386,7 +386,6 @@ def main():
             executor.submit(process_block, height, connection_type, endpoint_url)
             for height in range(lower_height, upper_height + 1, json_workers)
         ]
-        error_count = 0
         for future in as_completed(futures):
             if shutdown_event.is_set():
                 print(f"{bash_color_red}Shutdown event detected. Exiting...{bash_color_reset}")
@@ -394,8 +393,6 @@ def main():
             result = future.result()
             if result:
                 block_data.append({"height": result[0], "size": float(result[1]), "time": result[2]})
-            else:
-                error_count += 1
             pbar.update(1)
             completed = pbar.n
             progress = (completed / total_blocks) * 100
@@ -403,9 +400,6 @@ def main():
             estimated_total_time = elapsed_time / completed * total_blocks
             time_left = estimated_total_time - elapsed_time
             print(f"{bash_color_light_blue}Progress: {progress:.2f}% ({completed}/{total_blocks}) - Estimated time left: {timedelta(seconds=int(time_left))}", end='\r')
-            if error_count > total_blocks * 0.1:  # Exiting if more than 10% errors
-                print(f"{bash_color_red}Too many errors fetching data. Exiting...{bash_color_reset}")
-                sys.exit(1)
 
     executor.shutdown(wait=True)
 
