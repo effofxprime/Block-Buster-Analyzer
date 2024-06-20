@@ -21,7 +21,7 @@ import matplotlib.pyplot as plt
 import threading
 import numpy as np
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import matplotlib.dates as mdates
 from matplotlib.ticker import MaxNLocator
 import seaborn as sns
@@ -126,7 +126,7 @@ def process_block(height, endpoint_type, endpoint_url):
         block_data = {
             "height": height,
             "size": float(np.random.uniform(0.01, 6.0)),  # Ensure size is a float
-            "time": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+            "time": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         }
         return (block_data["height"], block_data["size"], block_data["time"])
     except Exception as e:
@@ -359,7 +359,7 @@ def main():
     block_data = []
     print(f"{bash_color_light_blue}\nFetching block information. This may take a while for large ranges. Please wait...{bash_color_reset}")
 
-    start_time = datetime.utcnow()
+    start_time = datetime.now(timezone.utc)
     current_date = start_time.strftime("%B %A %d, %Y %H:%M:%S UTC")
     output_file = f"block_sizes_{lower_height}_to_{upper_height}_{start_time.strftime('%Y%m%d_%H%M%S')}.json"
     output_image_file_base = f"block_sizes_{lower_height}_to_{upper_height}_{start_time.strftime('%Y%m%d_%H%M%S')}"
@@ -396,7 +396,7 @@ def main():
         sys.exit(0)
 
     # LOCKED
-    end_time = datetime.utcnow()
+    end_time = datetime.now(timezone.utc)
     actual_time = end_time - start_time
     print(f"{bash_color_light_green}\nFetching completed in {actual_time}. Saving data...{bash_color_reset}")
 
