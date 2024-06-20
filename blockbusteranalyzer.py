@@ -9,7 +9,7 @@
 # @Date - 2024-06-06 15:19:00 UTC
 # @Last_Modified_By - Jonathan - Erialos
 # @Last_Modified_Time - 2024-06-21 15:19:00 UTC
-# @Version - 1.0.16
+# @Version - 1.0.17
 # @Description - This script analyzes block sizes in a blockchain and generates various visualizations.
 
 # LOCKED - Only edit when we need to add or remove imports
@@ -25,7 +25,6 @@ from datetime import datetime, timedelta, timezone
 import matplotlib.dates as mdates
 from matplotlib.ticker import MaxNLocator
 import seaborn as sns
-from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from tabulate import tabulate
 import re
@@ -381,25 +380,30 @@ def main():
 
     print(f"{bash_color_dark_grey}\n{'='*40}\n{bash_color_reset}")
 
-    with tqdm(total=(upper_height - lower_height + 1)) as pbar:
-        futures = [
-            executor.submit(process_block, height, connection_type, endpoint_url)
-            for height in range(lower_height, upper_height + 1, json_workers)
-        ]
-        for future in as_completed(futures):
-            if shutdown_event.is_set():
-                print(f"{bash_color_red}Shutdown event detected. Exiting...{bash_color_reset}")
-                sys.exit(0)
-            result = future.result()
-            if result:
-                block_data.append({"height": result[0], "size": float(result[1]), "time": result[2]})
-            pbar.update(1)
-            completed = pbar.n
-            progress = (completed / total_blocks) * 100
-            elapsed_time = tm.time() - start_script_time
-            estimated_total_time = elapsed_time / completed * total_blocks
-            time_left = estimated_total_time - elapsed_time
-            print(f"{bash_color_light_blue}Progress: {progress:.2f}% ({completed}/{total_blocks}) - Estimated time left: {timedelta(seconds=int(time_left))}", end='\r')
+    futures = [
+        executor.submit(process_block, height, connection_type, endpoint_url)
+        for height in range(lower_height, upper_height + 1, json_workers)
+    ]
+
+    error_count = 0
+    for future in as_completed(futures):
+        if shutdown_event.is_set():
+            print(f"{bash_color_red}Shutdown event detected. Exiting...{bash_color_reset}")
+            sys.exit(0)
+        result = future.result()
+        if result:
+            block_data.append({"height": result[0], "size": float(result[1]), "time": result[2]})
+        else:
+            error_count += 1
+        completed = len(block_data)
+        progress = (completed / total_blocks) * 100
+        elapsed_time = tm.time() - start_script_time
+        estimated_total_time = elapsed_time / completed * total_blocks
+        time_left = estimated_total_time - elapsed_time
+        print(f"{bash_color_light_blue}Progress: {progress:.2f}% ({completed}/{total_blocks}) - Estimated time left: {timedelta(seconds=int(time_left))}", end='\r')
+        if error_count > total_blocks * 0.1:  # Exiting if more than 10% errors
+            print(f"{bash_color_red}Too many errors fetching data. Exiting...{bash_color_reset}")
+            sys.exit(1)
 
     executor.shutdown(wait=True)
 
