@@ -122,7 +122,7 @@ def find_lowest_height(endpoint_type, endpoint_url):
 
 # LOCKED
 def parse_timestamp(timestamp):
-    for fmt in ("%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S"):
+    for fmt in ("%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%S.%f%z"):
         try:
             return datetime.strptime(timestamp, fmt)
         except ValueError:
