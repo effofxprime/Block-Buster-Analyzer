@@ -9,7 +9,7 @@
 # @Date - 2024-06-06 15:19:00 UTC
 # @Last_Modified_By - Jonathan - Erialos
 # @Last_Modified_Time - 2024-06-21 15:19:00 UTC
-# @Version - 1.0.18
+# @Version - 1.0.19
 # @Description - This script analyzes block sizes in a blockchain and generates various visualizations.
 
 # LOCKED - Only edit when we need to add or remove imports
@@ -34,6 +34,8 @@ import requests_unixsocket
 from urllib.parse import quote_plus
 from tqdm import tqdm
 from http.client import IncompleteRead
+import logging
+import random
 
 # LOCKED
 # Define colors for console output
@@ -78,8 +80,11 @@ def check_endpoint(endpoint_type, endpoint_url):
         return False
 
 def fetch_block_info(endpoint_type, endpoint_url, height):
-    retries = 3
-    for attempt in range(retries):
+    attempt = 0
+    backoff_factor = 2  # Exponential backoff factor
+    base_sleep_time = 5  # Initial sleep time in seconds
+
+    while True:
         try:
             if endpoint_type == "socket":
                 session = requests_unixsocket.Session()
@@ -90,9 +95,10 @@ def fetch_block_info(endpoint_type, endpoint_url, height):
                 response.raise_for_status()
             return response.json()
         except (requests.RequestException, requests.exceptions.ConnectionError, IncompleteRead) as e:
-            print(f"Error fetching block {height}: {e}. Attempt {attempt + 1}/{retries}...")
-            tm.sleep(5)
-    return None
+            attempt += 1
+            logging.error(f"Error fetching block {height}: {e}. Attempt {attempt}...")
+            sleep_time = base_sleep_time * (backoff_factor ** attempt) + random.uniform(0, 1)
+            tm.sleep(sleep_time)
 
 def find_lowest_height(endpoint_type, endpoint_url):
     try:
@@ -324,6 +330,16 @@ def main():
     json_file_path = sys.argv[7] if len(sys.argv) == 8 else None
     output_image_file_base = os.path.splitext(json_file_path)[0] if json_file_path else "output"
 
+    start_time = datetime.now(timezone.utc)
+    current_date = start_time.strftime("%B %A %d, %Y %H:%M:%S UTC")
+    file_timestamp = start_time.strftime('%Y%m%d_%H%M%S')
+
+    output_file = f"block_sizes_{lower_height}_to_{upper_height}_{file_timestamp}.json"
+    output_image_file_base = f"block_sizes_{lower_height}_to_{upper_height}_{file_timestamp}"
+    log_file = f"error_logs_{lower_height}_to_{upper_height}_{file_timestamp}.log"
+
+    logging.basicConfig(filename=log_file, level=logging.ERROR, format='%(asctime)s %(message)s')
+
     # If a JSON file is specified, skip fetching and directly process the JSON file
     if json_file_path and os.path.exists(json_file_path):
         with open(json_file_path) as f:
@@ -375,12 +391,6 @@ def main():
     block_data = []
     print(f"{bash_color_light_blue}\nFetching block information. This may take a while for large ranges. Please wait...{bash_color_reset}")
 
-    start_time = datetime.now(timezone.utc)
-    current_date = start_time.strftime("%B %A %d, %Y %H:%M:%S UTC")
-    output_file = f"block_sizes_{lower_height}_to_{upper_height}_{start_time.strftime('%Y%m%d_%H%M%S')}.json"
-    output_image_file_base = f"block_sizes_{lower_height}_to_{upper_height}_{start_time.strftime('%Y%m%d_%H%M%S')}"
-
-    total_blocks = upper_height - lower_height + 1
     start_script_time = tm.time()
 
     print(f"{bash_color_dark_grey}\n{'='*40}\n{bash_color_reset}")
@@ -394,6 +404,12 @@ def main():
         result = future.result()
         if result:
             block_data.append({"height": result[0], "size": result[1], "time": result[2]})
+        completed = len(block_data)
+        progress = (completed / total_blocks) * 100
+        elapsed_time = tm.time() - start_script_time
+        estimated_total_time = elapsed_time / completed * total_blocks if completed else 0
+        time_left = estimated_total_time - elapsed_time
+        print(f"{bash_color_light_blue}Progress: {progress:.2f}% ({completed}/{total_blocks}) - Estimated time left: {timedelta(seconds=int(time_left))}", end='\r')
 
     executor.shutdown(wait=True)
 
