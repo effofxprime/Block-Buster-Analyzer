@@ -21,7 +21,7 @@ import matplotlib.pyplot as plt
 import threading
 import numpy as np
 import pandas as pd
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, date  # Added date import
 import matplotlib.dates as mdates
 from matplotlib.ticker import MaxNLocator
 import seaborn as sns
@@ -340,6 +340,7 @@ def main():
     logging.info("Signal handlers configured.")
 
     if len(sys.argv) < 5 or len(sys.argv) > 6:
+        logging.error("Incorrect number of arguments.")
         print(f"Usage: {sys.argv[0]} <lower_height> <upper_height> <connection_type> <endpoint_url> [<json_file_path>]")
         sys.exit(1)
 
@@ -363,21 +364,24 @@ def main():
 
     # If a JSON file is specified, skip fetching and directly process the JSON file
     if json_file_path and os.path.exists(json_file_path):
-        with open(json_file_path) as f:
-            data = json.load(f)
+        try:
+            with open(json_file_path) as f:
+                data = json.load(f)
         
-        # Convert sizes to float and times to datetime
-        for block in data["block_data"]:
-            block["size"] = float(block["size"])
-            block["time"] = parse_timestamp(block["time"])
+            # Convert sizes to float and times to datetime
+            for block in data["block_data"]:
+                block["size"] = float(block["size"])
+                block["time"] = parse_timestamp(block["time"])
 
-        # Infer lower and upper height from JSON file name
-        match = re.search(r"(\d+)-(\d+)", json_file_path)
-        if match:
-            lower_height = int(match.group(1))
-            upper_height = int(match.group(2))
+            # Infer lower and upper height from JSON file name
+            match = re.search(r"(\d+)-(\d+)", json_file_path)
+            if match:
+                lower_height = int(match.group(1))
+                upper_height = int(match.group(2))
 
-        generate_graphs_and_table(data["block_data"], output_image_file_base, lower_height, upper_height)
+            generate_graphs_and_table(data["block_data"], output_image_file_base, lower_height, upper_height)
+        except Exception as e:
+            logging.error(f"Error processing JSON file: {e}")
         return
 
     # Check endpoint availability
@@ -386,9 +390,10 @@ def main():
         if check_endpoint(connection_type, endpoint_url):
             break
         else:
-            print(f"{bash_color_yellow}RPC endpoint unreachable. Retrying {attempt + 1}/{retries}...{bash_color_reset}")
+            logging.warning(f"RPC endpoint unreachable. Retrying {attempt + 1}/{retries}...")
             tm.sleep(5)
     else:
+        logging.error("RPC endpoint unreachable after multiple attempts. Exiting.")
         print(f"{bash_color_red}RPC endpoint unreachable after multiple attempts. Exiting.{bash_color_reset}")
         sys.exit(1)
 
@@ -396,18 +401,22 @@ def main():
     if lower_height == 0:
         lowest_height = find_lowest_height(connection_type, endpoint_url)
         if lowest_height is None:
+            logging.error("Failed to determine the earliest block height. Exiting.")
             print(f"{bash_color_red}Failed to determine the earliest block height. Exiting.{bash_color_reset}")
             sys.exit(1)
+        logging.info(f"Using earliest available block height: {lowest_height}")
         print(f"{bash_color_light_blue}Using earliest available block height: {lowest_height}{bash_color_reset}")
         lower_height = lowest_height
 
     if lower_height > upper_height:
+        logging.error(f"The specified lower height {lower_height} is greater than the specified upper height {upper_height}. Exiting.")
         print(f"{bash_color_red}The specified lower height {lower_height} is greater than the specified upper height {upper_height}. Exiting.{bash_color_reset}")
         sys.exit(1)
 
     json_file_path = f"{output_image_file_base}.json"
     with ThreadPoolExecutor(max_workers=fetch_workers) as executor:
         block_data = []
+        logging.info("Fetching block information. This may take a while for large ranges. Please wait.")
         print(f"{bash_color_light_blue}\nFetching block information. This may take a while for large ranges. Please wait...{bash_color_reset}")
 
         start_time = datetime.now(timezone.utc)
@@ -423,6 +432,7 @@ def main():
         with open(json_file_path, 'w') as f:
             for future in tqdm(as_completed(futures), total=len(futures), desc="Fetching blocks (TQDM Progress)"):
                 if shutdown_event.is_set():
+                    logging.info("Shutdown event detected. Exiting.")
                     print(f"{bash_color_red}Shutdown event detected. Exiting...{bash_color_reset}")
                     break
                 try:
@@ -448,11 +458,13 @@ def main():
             print("\n")
 
     if shutdown_event.is_set():
+        logging.info("Shutdown event detected. Exiting.")
         print(f"{bash_color_red}Shutdown event detected. Exiting...{bash_color_reset}")
         sys.exit(0)
 
     end_time = datetime.now(timezone.utc)
     actual_time = end_time - start_time
+    logging.info(f"Fetching completed in {actual_time}. Saving data.")
     print(f"{bash_color_light_green}\nFetching completed in {actual_time}. Saving data...{bash_color_reset}")
 
     # Categorize blocks and prepare data for JSON output
@@ -482,7 +494,6 @@ def main():
 
     # Generate graphs and table
     generate_graphs_and_table(block_data, output_image_file_base, lower_height, upper_height)
-
 
 if __name__ == "__main__":
     main()
