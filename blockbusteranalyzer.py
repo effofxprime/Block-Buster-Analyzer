@@ -324,9 +324,14 @@ def main():
     global shutdown_event, executor
     shutdown_event = threading.Event()
 
+    # Set up logging configuration
+    log_file = f"error_logs_{lower_height}_to_{upper_height}_{file_timestamp}.log"
+    logging.basicConfig(filename=log_file, level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
+    
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
     logging.info("Signal handlers configured.")
+
 
     if len(sys.argv) < 5 or len(sys.argv) > 6:
         print(f"Usage: {sys.argv[0]} <lower_height> <upper_height> <connection_type> <endpoint_url> [<json_file_path>]")
@@ -457,10 +462,16 @@ def main():
     }
 
     def save_data_incrementally(block_data, json_file_path):
+        def default(obj):
+            if isinstance(obj, (datetime,)):
+                return obj.isoformat()
+            raise TypeError(f"Type {type(obj)} not serializable")
+
         with open(json_file_path, 'w') as f:
             for block in block_data:
-                json.dump(block, f)
+                json.dump(block, f, default=default)
                 f.write('\n')
+
 
     # Save data to JSON file incrementally
     json_file_path = f"{output_image_file_base}.json"
