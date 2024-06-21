@@ -349,7 +349,7 @@ def main():
     connection_type = sys.argv[3]
     endpoint_url = sys.argv[4]
     json_file_path = sys.argv[5] if len(sys.argv) == 6 else None
-    output_image_file_base = os.path.splitext(json_file_path)[0] if json_file_path else "output"
+    output_image_file_base = os.path.splitext(json_file_path)[0] if json_file_path else f"output_{lower_height}_to_{upper_height}"
 
     start_time = datetime.now(timezone.utc)
     current_date = start_time.strftime("%B %A %d, %Y %H:%M:%S UTC")
@@ -467,29 +467,7 @@ def main():
     logging.info(f"Fetching completed in {actual_time}. Saving data.")
     print(f"{bash_color_light_green}\nFetching completed in {actual_time}. Saving data...{bash_color_reset}")
 
-    # Categorize blocks and prepare data for JSON output
-    categories = {
-        "less_than_1MB": [],
-        "1MB_to_2MB": [],
-        "2MB_to_3MB": [],
-        "3MB_to_5MB": [],
-        "greater_than_5MB": []
-    }
-
-    def save_data_incrementally(block_data, json_file_path):
-        def default(obj):
-            if isinstance(obj, (datetime,)):
-                return obj.isoformat()
-            raise TypeError(f"Type {type(obj)} not serializable")
-
-        with open(json_file_path, 'w') as f:
-            for block in block_data:
-                json.dump(block, f, default=default)
-                f.write('\n')
-
-
-    # Save data to JSON file incrementally
-    json_file_path = f"{output_image_file_base}.json"
+    # Save data incrementally
     save_data_incrementally(block_data, json_file_path)
 
     # Generate graphs and table
