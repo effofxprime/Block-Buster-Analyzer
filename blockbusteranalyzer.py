@@ -9,7 +9,7 @@
 # @Date - 2024-06-06 15:19:00 UTC
 # @Last_Modified_By - Jonathan - Erialos
 # @Last_Modified_Time - 2024-06-21 15:19:00 UTC
-# @Version - 1.0.22
+# @Version - 1.0.23
 # @Description - This script analyzes block sizes in a blockchain and generates various visualizations.
 
 # LOCKED - Only edit when we need to add or remove imports
@@ -35,6 +35,7 @@ from urllib.parse import quote_plus
 from tqdm import tqdm
 from http.client import IncompleteRead
 import logging
+import psutil  # For system load monitoring
 
 # LOCKED
 # Define colors for console output
@@ -184,7 +185,7 @@ def categorize_block(block, categories):
 def generate_scatter_chart(times, sizes, colors, output_image_file_base, lower_height, upper_height):
     print(f"{bash_color_light_blue}Generating scatter chart...{bash_color_reset}")
     fig, ax = plt.subplots(figsize=(38, 20))
-    scatter = ax.scatter(times, sizes, c=colors, s=20)  # Increased dot size
+    scatter = ax.scatter(times, sizes, c=colors, s=30)  # Increased dot size
     ax.set_title(f'Block Size Over Time (Scatter Chart)\nBlock Heights {lower_height} to {upper_height}', fontsize=32)
     ax.set_xlabel('Time', fontsize=32)
     ax.set_ylabel('Block Size (MB)', fontsize=32)
@@ -209,7 +210,7 @@ def generate_scatter_chart(times, sizes, colors, output_image_file_base, lower_h
 def generate_enhanced_scatter_chart(times, sizes, colors, output_image_file_base, lower_height, upper_height):
     print(f"{bash_color_light_blue}Generating enhanced scatter chart...{bash_color_reset}")
     fig, ax = plt.subplots(figsize=(38, 20))
-    scatter = ax.scatter(times, sizes, c=colors, s=20, alpha=0.6, edgecolors='w', linewidth=0.5)  # Increased dot size
+    scatter = ax.scatter(times, sizes, c=colors, s=30, alpha=0.6, edgecolors='w', linewidth=0.5)  # Increased dot size
     ax.set_title(f'Block Size Over Time (Enhanced Scatter Chart)\nBlock Heights {lower_height} to {upper_height}', fontsize=32)
     ax.set_xlabel('Time', fontsize=32)
     ax.set_ylabel('Block Size (MB)', fontsize=32)
@@ -311,24 +312,29 @@ def generate_graphs_and_table(block_data, output_image_file_base, lower_height, 
     generate_heatmap_with_additional_dimensions(times, sizes, output_image_file_base)
     generate_segmented_bar_chart(times, sizes, output_image_file_base)
 
+def determine_optimal_workers():
+    cpu_count = os.cpu_count()
+    system_load = psutil.getloadavg()[0]  # 1 minute system load average
+    optimal_fetch_workers = max(1, min(cpu_count, int(cpu_count / (system_load + 1))))
+    optimal_json_workers = cpu_count  # Assuming reading JSON is less intensive
+    return optimal_fetch_workers, optimal_json_workers
+
 def main():
-    global shutdown_event
+    global shutdown_event, executor
     shutdown_event = threading.Event()
 
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
-    if len(sys.argv) < 7 or len(sys.argv) > 8:
-        print(f"Usage: {sys.argv[0]} <json_workers> <fetch_workers> <lower_height> <upper_height> <connection_type> <endpoint_url> [<json_file_path>]")
+    if len(sys.argv) < 5 or len(sys.argv) > 6:
+        print(f"Usage: {sys.argv[0]} <lower_height> <upper_height> <connection_type> <endpoint_url> [<json_file_path>]")
         sys.exit(1)
 
-    json_workers = int(sys.argv[1])
-    fetch_workers = int(sys.argv[2])
-    lower_height = int(sys.argv[3])
-    upper_height = int(sys.argv[4])
-    connection_type = sys.argv[5]
-    endpoint_url = sys.argv[6]
-    json_file_path = sys.argv[7] if len(sys.argv) == 8 else None
+    lower_height = int(sys.argv[1])
+    upper_height = int(sys.argv[2])
+    connection_type = sys.argv[3]
+    endpoint_url = sys.argv[4]
+    json_file_path = sys.argv[5] if len(sys.argv) == 6 else None
     output_image_file_base = os.path.splitext(json_file_path)[0] if json_file_path else "output"
 
     start_time = datetime.now(timezone.utc)
@@ -340,6 +346,10 @@ def main():
     log_file = f"error_logs_{lower_height}_to_{upper_height}_{file_timestamp}.log"
 
     logging.basicConfig(filename=log_file, level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
+
+    # Calculate optimal workers
+    fetch_workers, json_workers = determine_optimal_workers()
+    print(f"Optimal fetch workers: {fetch_workers}, Optimal JSON workers: {json_workers}")
 
     # If a JSON file is specified, skip fetching and directly process the JSON file
     if json_file_path and os.path.exists(json_file_path):
@@ -399,7 +409,7 @@ def main():
         heights = range(lower_height, upper_height + 1)
         futures = [executor.submit(process_block, height, connection_type, endpoint_url) for height in heights]
 
-                for future in tqdm(as_completed(futures), total=len(futures), desc="Fetching blocks (TQDM Progress)"):
+        for future in tqdm(as_completed(futures), total=len(futures), desc="Fetching blocks (TQDM Progress)"):
             if shutdown_event.is_set():
                 print(f"{bash_color_red}Shutdown event detected. Exiting...{bash_color_reset}")
                 break
@@ -436,25 +446,15 @@ def main():
         "greater_than_5MB": []
     }
 
-    for height, size, time in block_data:
-        block = {"height": height, "size": size, "time": time}
-        categorize_block(block, categories)
+    def save_data_incrementally(block_data, json_file_path):
+        with open(json_file_path, 'w') as f:
+            for block in block_data:
+                json.dump(block, f)
+                f.write('\n')
 
-    data = {
-        "block_data": block_data,
-        "categories": {
-            "less_than_1MB": categories["less_than_1MB"],
-            "1MB_to_2MB": categories["1MB_to_2MB"],
-            "2MB_to_3MB": categories["2MB_to_3MB"],
-            "3MB_to_5MB": categories["3MB_to_5MB"],
-            "greater_than_5MB": categories["greater_than_5MB"]
-        }
-    }
-
-    # Save data to JSON file
+    # Save data to JSON file incrementally
     json_file_path = f"{output_image_file_base}.json"
-    with open(json_file_path, 'w') as f:
-        json.dump(data, f, default=str)
+    save_data_incrementally(block_data, json_file_path)
 
     # Generate graphs and table
     generate_graphs_and_table(block_data, output_image_file_base, lower_height, upper_height)
