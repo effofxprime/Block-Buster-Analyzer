@@ -320,18 +320,24 @@ def determine_optimal_workers():
     optimal_json_workers = cpu_count  # Assuming reading JSON is less intensive
     return optimal_fetch_workers, optimal_json_workers
 
+def save_data_incrementally(block_data, json_file_path):
+    with open(json_file_path, 'w') as f:
+        for block in block_data:
+            json.dump(block, f, default=default)
+            f.write('\n')
+
+def default(obj):
+    if isinstance(obj, (datetime, date)):
+        return obj.isoformat()
+    raise TypeError("Type not serializable")
+
 def main():
     global shutdown_event, executor
     shutdown_event = threading.Event()
 
-    # Set up logging configuration
-    log_file = f"error_logs_{lower_height}_to_{upper_height}_{file_timestamp}.log"
-    logging.basicConfig(filename=log_file, level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
-    
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
     logging.info("Signal handlers configured.")
-
 
     if len(sys.argv) < 5 or len(sys.argv) > 6:
         print(f"Usage: {sys.argv[0]} <lower_height> <upper_height> <connection_type> <endpoint_url> [<json_file_path>]")
@@ -348,11 +354,8 @@ def main():
     current_date = start_time.strftime("%B %A %d, %Y %H:%M:%S UTC")
     file_timestamp = start_time.strftime('%Y%m%d_%H%M%S')
 
-    output_file = f"block_sizes_{lower_height}_to_{upper_height}_{file_timestamp}.json"
-    output_image_file_base = f"block_sizes_{lower_height}_to_{upper_height}_{file_timestamp}"
     log_file = f"error_logs_{lower_height}_to_{upper_height}_{file_timestamp}.log"
-
-    logging.basicConfig(filename=log_file, level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+    logging.basicConfig(filename=log_file, level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
 
     # Calculate optimal workers
     fetch_workers, json_workers = determine_optimal_workers()
@@ -428,7 +431,7 @@ def main():
                         block = {"height": result[0], "size": result[1], "time": result[2]}
                         block_data.append(block)
                         # Incremental save to JSON
-                        f.write(json.dumps(block) + '\n')
+                        f.write(json.dumps(block, default=default) + '\n')
                 except Exception as e:
                     logging.error(f"Error processing future result: {e}")
 
@@ -479,6 +482,7 @@ def main():
 
     # Generate graphs and table
     generate_graphs_and_table(block_data, output_image_file_base, lower_height, upper_height)
+
 
 if __name__ == "__main__":
     main()
