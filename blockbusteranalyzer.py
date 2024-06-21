@@ -9,7 +9,7 @@
 # @Date - 2024-06-06 15:19:00 UTC
 # @Last_Modified_By - Jonathan - Erialos
 # @Last_Modified_Time - 2024-06-21 15:19:00 UTC
-# @Version - 1.0.21
+# @Version - 1.0.22
 # @Description - This script analyzes block sizes in a blockchain and generates various visualizations.
 
 # LOCKED - Only edit when we need to add or remove imports
@@ -92,8 +92,9 @@ def fetch_block_info(endpoint_type, endpoint_url, height):
                 response.raise_for_status()
             return response.json()
         except (requests.RequestException, requests.exceptions.ConnectionError, IncompleteRead) as e:
-            logging.error(f"Error fetching block {height}: {e}. Attempt {attempt + 1}/{retries}")
+            logging.error(f"Error fetching block {height}: {e}. Attempt {attempt + 1}/{retries}. Retrying in {backoff_factor ** attempt} seconds.")
             tm.sleep(backoff_factor ** attempt)
+    logging.error(f"Failed to fetch block {height} after {retries} attempts.")
     return None
 
 def find_lowest_height(endpoint_type, endpoint_url):
@@ -166,7 +167,7 @@ def categorize_block(block, categories):
     try:
         size = float(block["size"])
     except ValueError:
-        logging.error(f"Error converting block size to float: {block['size']}")
+        logging.error(f"Error converting block size to float: {block['size']} for block {block['height']}")
         return
     if size < 1:
         categories["less_than_1MB"].append(block)
@@ -183,7 +184,7 @@ def categorize_block(block, categories):
 def generate_scatter_chart(times, sizes, colors, output_image_file_base, lower_height, upper_height):
     print(f"{bash_color_light_blue}Generating scatter chart...{bash_color_reset}")
     fig, ax = plt.subplots(figsize=(38, 20))
-    scatter = ax.scatter(times, sizes, c=colors, s=10)
+    scatter = ax.scatter(times, sizes, c=colors, s=20)  # Increased dot size
     ax.set_title(f'Block Size Over Time (Scatter Chart)\nBlock Heights {lower_height} to {upper_height}', fontsize=32)
     ax.set_xlabel('Time', fontsize=32)
     ax.set_ylabel('Block Size (MB)', fontsize=32)
@@ -208,7 +209,7 @@ def generate_scatter_chart(times, sizes, colors, output_image_file_base, lower_h
 def generate_enhanced_scatter_chart(times, sizes, colors, output_image_file_base, lower_height, upper_height):
     print(f"{bash_color_light_blue}Generating enhanced scatter chart...{bash_color_reset}")
     fig, ax = plt.subplots(figsize=(38, 20))
-    scatter = ax.scatter(times, sizes, c=colors, s=10, alpha=0.6, edgecolors='w', linewidth=0.5)
+    scatter = ax.scatter(times, sizes, c=colors, s=20, alpha=0.6, edgecolors='w', linewidth=0.5)  # Increased dot size
     ax.set_title(f'Block Size Over Time (Enhanced Scatter Chart)\nBlock Heights {lower_height} to {upper_height}', fontsize=32)
     ax.set_xlabel('Time', fontsize=32)
     ax.set_ylabel('Block Size (MB)', fontsize=32)
@@ -238,7 +239,7 @@ def generate_heatmap_with_additional_dimensions(times, sizes, output_image_file_
     data["day_of_week_name"] = data["times"].dt.day_name()
     heatmap_data = pd.pivot_table(data, values="sizes", index="hour", columns="day_of_week_name", aggfunc=np.mean)
     plt.figure(figsize=(38, 20))
-    sns.heatmap(heatmap_data, cmap="YlGnBu", annot=True, fmt=".2f")
+    sns.heatmap(heatmap_data, cmap="YlGnBu", annot=True, fmt=".2f", annot_kws={"size": 32})  # Increased font size for annotations
     plt.title('Heatmap of Block Sizes by Hour and Day of Week', fontsize=32)
     plt.xlabel('Day of Week', fontsize=32)
     plt.ylabel('Hour of Day', fontsize=32)
@@ -398,7 +399,7 @@ def main():
         heights = range(lower_height, upper_height + 1)
         futures = [executor.submit(process_block, height, connection_type, endpoint_url) for height in heights]
 
-        for future in tqdm(as_completed(futures), total=len(futures), desc="Fetching blocks"):
+                for future in tqdm(as_completed(futures), total=len(futures), desc="Fetching blocks (TQDM Progress)"):
             if shutdown_event.is_set():
                 print(f"{bash_color_red}Shutdown event detected. Exiting...{bash_color_reset}")
                 break
@@ -414,7 +415,9 @@ def main():
             elapsed_time = tm.time() - start_script_time
             estimated_total_time = elapsed_time / completed * total_blocks if completed else 0
             time_left = estimated_total_time - elapsed_time
-            print(f"{bash_color_light_blue}Progress: {progress:.2f}% ({completed}/{total_blocks}) - Estimated time left: {timedelta(seconds=int(time_left))}", end='\r')
+            print(f"{bash_color_light_blue}Progress (Custom): {progress:.2f}% ({completed}/{total_blocks}) - Estimated time left: {timedelta(seconds=int(time_left))}", end='\r')
+
+        print("\n")
 
     if shutdown_event.is_set():
         print(f"{bash_color_red}Shutdown event detected. Exiting...{bash_color_reset}")
