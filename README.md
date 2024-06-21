@@ -62,15 +62,15 @@ BlockBusterAnalyzer is a tool to monitor and analyze the sizes of blocks in a bl
 1. **Run the script**
 
     ```sh
-    python3 blockbusteranalyzer.py <num_workers> <lower_height> <upper_height> <endpoint_type> <endpoint_urls> [json_file]
+    python3 blockbusteranalyzer.py <lower_height> <upper_height> <connection_type> <endpoint_url> [json_file_path]
     ```
 
     Example:
 
     ```sh
-    python3 blockbusteranalyzer.py 10 7500000 7909000 "tcp" "https://rpc.jackalprotocol.com:443,https://another.rpc.endpoint:443"
-    python3 blockbusteranalyzer.py 10 7500000 7909000 "socket" "/dev/shm/jackal/trpc.socket"
-    python3 blockbusteranalyzer.py 10 7500000 7909000 "tcp" "https://rpc.jackalprotocol.com:443" "block_sizes_7500000_to_7909000_20240614_100000.json"
+    python3 blockbusteranalyzer.py 7500000 7909000 "tcp" "https://rpc.jackalprotocol.com:443"
+    python3 blockbusteranalyzer.py 7500000 7909000 "socket" "/dev/shm/jackal/trpc.socket"
+    python3 blockbusteranalyzer.py 7500000 7909000 "tcp" "https://rpc.jackalprotocol.com:443" "block_sizes_7500000_to_7909000_20240614_100000.json"
     ```
 
 ## Output
