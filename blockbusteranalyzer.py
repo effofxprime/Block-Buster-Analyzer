@@ -9,7 +9,7 @@
 # @Date - 2024-06-06 15:19:00 UTC
 # @Last_Modified_By - Jonathan - Erialos
 # @Last_Modified_Time - 2024-06-21 15:19:00 UTC
-# @Version - 1.0.20
+# @Version - 1.0.21
 # @Description - This script analyzes block sizes in a blockchain and generates various visualizations.
 
 # LOCKED - Only edit when we need to add or remove imports
@@ -35,7 +35,6 @@ from urllib.parse import quote_plus
 from tqdm import tqdm
 from http.client import IncompleteRead
 import logging
-import random
 
 # LOCKED
 # Define colors for console output
@@ -164,7 +163,11 @@ def signal_handler(sig, frame):
 
 # LOCKED
 def categorize_block(block, categories):
-    size = float(block["size"])
+    try:
+        size = float(block["size"])
+    except ValueError:
+        logging.error(f"Error converting block size to float: {block['size']}")
+        return
     if size < 1:
         categories["less_than_1MB"].append(block)
     elif 1 <= size < 2:
