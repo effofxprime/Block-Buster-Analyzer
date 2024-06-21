@@ -8,8 +8,8 @@
 # @Twitter - https://twitter.com/ErialosOfAstora
 # @Date - 2024-06-06 15:19:00 UTC
 # @Last_Modified_By - Jonathan - Erialos
-# @Last_Modified_Time - 2024-06-21 15:19:00 UTC
-# @Version - 1.0.23
+# @Last_Modified_Time - 2024-06-21 17:45:00 UTC
+# @Version - 1.0.24
 # @Description - This script analyzes block sizes in a blockchain and generates various visualizations.
 
 # LOCKED - Only edit when we need to add or remove imports
@@ -93,7 +93,7 @@ def fetch_block_info(endpoint_type, endpoint_url, height):
                 response.raise_for_status()
             return response.json()
         except (requests.RequestException, requests.exceptions.ConnectionError, IncompleteRead) as e:
-            logging.error(f"Error fetching block {height}: {e}. Attempt {attempt + 1}/{retries}. Retrying in {backoff_factor ** attempt} seconds.")
+            logging.error(f"Error fetching block {height} from {endpoint_url} using {endpoint_type}: {e}. Attempt {attempt + 1}/{retries}. Retrying in {backoff_factor ** attempt} seconds.")
             tm.sleep(backoff_factor ** attempt)
     logging.error(f"Failed to fetch block {height} after {retries} attempts.")
     return None
@@ -122,9 +122,9 @@ def find_lowest_height(endpoint_type, endpoint_url):
                 if "lowest height is" in data_message:
                     return int(data_message.split("lowest height is")[1].strip())
         else:
-            print(f"HTTPError: {e}")  # Debugging output
+            logging.error(f"HTTPError while finding the lowest height from {endpoint_url} using {endpoint_type}: {e}")
     except requests.RequestException as e:
-        print(f"RequestException: {e}")  # Debugging output
+        logging.error(f"RequestException while finding the lowest height from {endpoint_url} using {endpoint_type}: {e}")
         return None
 
     return 1
@@ -153,10 +153,11 @@ def process_block(height, endpoint_type, endpoint_url):
         block_time = parse_timestamp(block_info['result']['block']['header']['time'])
         return (height, block_size_mb, block_time)
     except Exception as e:
-        logging.error(f"Error fetching data for block {height}: {e}")
+        logging.error(f"Error processing block {height} from {endpoint_url} using {endpoint_type}: {e}")
         return None
 
 def signal_handler(sig, frame):
+    logging.info(f"Signal {sig} received. Shutting down.")
     print(f"{bash_color_red}\nProcess interrupted. Exiting gracefully...{bash_color_reset}")
     shutdown_event.set()
     if executor:
@@ -325,6 +326,7 @@ def main():
 
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
+    logging.info("Signal handlers configured.")
 
     if len(sys.argv) < 5 or len(sys.argv) > 6:
         print(f"Usage: {sys.argv[0]} <lower_height> <upper_height> <connection_type> <endpoint_url> [<json_file_path>]")
@@ -345,7 +347,7 @@ def main():
     output_image_file_base = f"block_sizes_{lower_height}_to_{upper_height}_{file_timestamp}"
     log_file = f"error_logs_{lower_height}_to_{upper_height}_{file_timestamp}.log"
 
-    logging.basicConfig(filename=log_file, level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
+    logging.basicConfig(filename=log_file, level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
     # Calculate optimal workers
     fetch_workers, json_workers = determine_optimal_workers()
@@ -395,6 +397,7 @@ def main():
         print(f"{bash_color_red}The specified lower height {lower_height} is greater than the specified upper height {upper_height}. Exiting.{bash_color_reset}")
         sys.exit(1)
 
+    json_file_path = f"{output_image_file_base}.json"
     with ThreadPoolExecutor(max_workers=fetch_workers) as executor:
         block_data = []
         print(f"{bash_color_light_blue}\nFetching block information. This may take a while for large ranges. Please wait...{bash_color_reset}")
@@ -409,25 +412,32 @@ def main():
         heights = range(lower_height, upper_height + 1)
         futures = [executor.submit(process_block, height, connection_type, endpoint_url) for height in heights]
 
-        for future in tqdm(as_completed(futures), total=len(futures), desc="Fetching blocks (TQDM Progress)"):
-            if shutdown_event.is_set():
-                print(f"{bash_color_red}Shutdown event detected. Exiting...{bash_color_reset}")
-                break
-            try:
-                result = future.result()
-                if result:
-                    block_data.append({"height": result[0], "size": result[1], "time": result[2]})
-            except Exception as e:
-                logging.error(f"Error processing future result: {e}")
+        with open(json_file_path, 'w') as f:
+            for future in tqdm(as_completed(futures), total=len(futures), desc="Fetching blocks (TQDM Progress)"):
+                if shutdown_event.is_set():
+                    print(f"{bash_color_red}Shutdown event detected. Exiting...{bash_color_reset}")
+                    break
+                try:
+                    result = future.result()
+                    if result:
+                        block = {"height": result[0], "size": result[1], "time": result[2]}
+                        block_data.append(block)
+                        # Incremental save to JSON
+                        f.write(json.dumps(block) + '\n')
+                except Exception as e:
+                    logging.error(f"Error processing future result: {e}")
 
-            completed = len(block_data)
-            progress = (completed / total_blocks) * 100
-            elapsed_time = tm.time() - start_script_time
-            estimated_total_time = elapsed_time / completed * total_blocks if completed else 0
-            time_left = estimated_total_time - elapsed_time
-            print(f"{bash_color_light_blue}Progress (Custom): {progress:.2f}% ({completed}/{total_blocks}) - Estimated time left: {timedelta(seconds=int(time_left))}", end='\r')
+                completed = len(block_data)
+                progress = (completed / total_blocks) * 100
+                elapsed_time = tm.time() - start_script_time
+                estimated_total_time = elapsed_time / completed * total_blocks if completed else 0
+                time_left = estimated_total_time - elapsed_time
+                
+                # Adding a newline to separate the progress indicators
+                print()
+                print(f"{bash_color_light_blue}Progress (Custom): {progress:.2f}% ({completed}/{total_blocks}) - Estimated time left: {timedelta(seconds=int(time_left))}", end='\r')
 
-        print("\n")
+            print("\n")
 
     if shutdown_event.is_set():
         print(f"{bash_color_red}Shutdown event detected. Exiting...{bash_color_reset}")
