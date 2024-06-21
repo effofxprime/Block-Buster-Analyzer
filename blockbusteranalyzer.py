@@ -9,7 +9,7 @@
 # @Date - 2024-06-06 15:19:00 UTC
 # @Last_Modified_By - Jonathan - Erialos
 # @Last_Modified_Time - 2024-06-21 15:19:00 UTC
-# @Version - 1.0.19
+# @Version - 1.0.20
 # @Description - This script analyzes block sizes in a blockchain and generates various visualizations.
 
 # LOCKED - Only edit when we need to add or remove imports
@@ -80,11 +80,9 @@ def check_endpoint(endpoint_type, endpoint_url):
         return False
 
 def fetch_block_info(endpoint_type, endpoint_url, height):
-    attempt = 0
-    backoff_factor = 2  # Exponential backoff factor
-    base_sleep_time = 5  # Initial sleep time in seconds
-
-    while True:
+    retries = 3
+    backoff_factor = 1.5
+    for attempt in range(retries):
         try:
             if endpoint_type == "socket":
                 session = requests_unixsocket.Session()
@@ -95,10 +93,9 @@ def fetch_block_info(endpoint_type, endpoint_url, height):
                 response.raise_for_status()
             return response.json()
         except (requests.RequestException, requests.exceptions.ConnectionError, IncompleteRead) as e:
-            attempt += 1
-            logging.error(f"Error fetching block {height}: {e}. Attempt {attempt}...")
-            sleep_time = base_sleep_time * (backoff_factor ** attempt) + random.uniform(0, 1)
-            tm.sleep(sleep_time)
+            logging.error(f"Error fetching block {height}: {e}. Attempt {attempt + 1}/{retries}")
+            tm.sleep(backoff_factor ** attempt)
+    return None
 
 def find_lowest_height(endpoint_type, endpoint_url):
     try:
@@ -155,7 +152,7 @@ def process_block(height, endpoint_type, endpoint_url):
         block_time = parse_timestamp(block_info['result']['block']['header']['time'])
         return (height, block_size_mb, block_time)
     except Exception as e:
-        print(f"Error fetching data for block {height}: {e}")
+        logging.error(f"Error fetching data for block {height}: {e}")
         return None
 
 def signal_handler(sig, frame):
@@ -338,7 +335,7 @@ def main():
     output_image_file_base = f"block_sizes_{lower_height}_to_{upper_height}_{file_timestamp}"
     log_file = f"error_logs_{lower_height}_to_{upper_height}_{file_timestamp}.log"
 
-    logging.basicConfig(filename=log_file, level=logging.ERROR, format='%(asctime)s %(message)s')
+    logging.basicConfig(filename=log_file, level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
 
     # If a JSON file is specified, skip fetching and directly process the JSON file
     if json_file_path and os.path.exists(json_file_path):
@@ -384,34 +381,37 @@ def main():
         print(f"{bash_color_red}The specified lower height {lower_height} is greater than the specified upper height {upper_height}. Exiting.{bash_color_reset}")
         sys.exit(1)
 
-    global executor
-    executor = ThreadPoolExecutor(max_workers=fetch_workers)
+    with ThreadPoolExecutor(max_workers=fetch_workers) as executor:
+        block_data = []
+        print(f"{bash_color_light_blue}\nFetching block information. This may take a while for large ranges. Please wait...{bash_color_reset}")
 
-    # Fetch block data
-    block_data = []
-    print(f"{bash_color_light_blue}\nFetching block information. This may take a while for large ranges. Please wait...{bash_color_reset}")
+        start_time = datetime.now(timezone.utc)
+        current_date = start_time.strftime("%B %A %d, %Y %H:%M:%S UTC")
+        total_blocks = upper_height - lower_height + 1
+        start_script_time = tm.time()
 
-    start_script_time = tm.time()
+        print(f"{bash_color_dark_grey}\n{'='*40}\n{bash_color_reset}")
 
-    print(f"{bash_color_dark_grey}\n{'='*40}\n{bash_color_reset}")
+        heights = range(lower_height, upper_height + 1)
+        futures = [executor.submit(process_block, height, connection_type, endpoint_url) for height in heights]
 
-    heights = range(lower_height, upper_height + 1)
-    futures = [executor.submit(process_block, height, connection_type, endpoint_url) for height in heights]
-    for future in tqdm(as_completed(futures), total=len(heights), desc="Fetching blocks"):
-        if shutdown_event.is_set():
-            print(f"{bash_color_red}Shutdown event detected. Exiting...{bash_color_reset}")
-            sys.exit(0)
-        result = future.result()
-        if result:
-            block_data.append({"height": result[0], "size": result[1], "time": result[2]})
-        completed = len(block_data)
-        progress = (completed / total_blocks) * 100
-        elapsed_time = tm.time() - start_script_time
-        estimated_total_time = elapsed_time / completed * total_blocks if completed else 0
-        time_left = estimated_total_time - elapsed_time
-        print(f"{bash_color_light_blue}Progress: {progress:.2f}% ({completed}/{total_blocks}) - Estimated time left: {timedelta(seconds=int(time_left))}", end='\r')
+        for future in tqdm(as_completed(futures), total=len(futures), desc="Fetching blocks"):
+            if shutdown_event.is_set():
+                print(f"{bash_color_red}Shutdown event detected. Exiting...{bash_color_reset}")
+                break
+            try:
+                result = future.result()
+                if result:
+                    block_data.append({"height": result[0], "size": result[1], "time": result[2]})
+            except Exception as e:
+                logging.error(f"Error processing future result: {e}")
 
-    executor.shutdown(wait=True)
+            completed = len(block_data)
+            progress = (completed / total_blocks) * 100
+            elapsed_time = tm.time() - start_script_time
+            estimated_total_time = elapsed_time / completed * total_blocks if completed else 0
+            time_left = estimated_total_time - elapsed_time
+            print(f"{bash_color_light_blue}Progress: {progress:.2f}% ({completed}/{total_blocks}) - Estimated time left: {timedelta(seconds=int(time_left))}", end='\r')
 
     if shutdown_event.is_set():
         print(f"{bash_color_red}Shutdown event detected. Exiting...{bash_color_reset}")
