@@ -9,7 +9,7 @@
 # @Date - 2024-06-06 15:19:00 UTC
 # @Last_Modified_By - Jonathan - Erialos
 # @Last_Modified_Time - 2024-06-21 15:19:00 UTC
-# @Version - 1.0.17
+# @Version - 1.0.18
 # @Description - This script analyzes block sizes in a blockchain and generates various visualizations.
 
 # LOCKED - Only edit when we need to add or remove imports
@@ -394,12 +394,6 @@ def main():
         result = future.result()
         if result:
             block_data.append({"height": result[0], "size": result[1], "time": result[2]})
-        completed = len(block_data)
-        progress = (completed / total_blocks) * 100
-        elapsed_time = tm.time() - start_script_time
-        estimated_total_time = elapsed_time / completed * total_blocks if completed else 0
-        time_left = estimated_total_time - elapsed_time
-        print(f"{bash_color_light_blue}Progress: {progress:.2f}% ({completed}/{total_blocks}) - Estimated time left: {timedelta(seconds=int(time_left))}", end='\r')
 
     executor.shutdown(wait=True)
 
