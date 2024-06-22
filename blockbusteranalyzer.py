@@ -383,13 +383,12 @@ def default(obj):
 log_file = None
 start_time = datetime.now(timezone.utc)
 file_timestamp = start_time.strftime('%Y%m%d_%H%M%S')
-log_file = f"error_log_{file_timestamp}.log"
 
-logging.basicConfig(filename=log_file, level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
-logging.getLogger().handlers = [h for h in logging.getLogger().handlers if isinstance(h, logging.FileHandler)]
-
-def configure_logging():
+def configure_logging(lower_height, upper_height):
     global log_file
+    log_file = f"error_log_{lower_height}_to_{upper_height}_{file_timestamp}.log"
+    logging.basicConfig(filename=log_file, level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+    logging.getLogger().handlers = [h for h in logging.getLogger().handlers if isinstance(h, logging.FileHandler)]
     logging.info("Logging configured globally.")
 
 def main():
@@ -418,7 +417,7 @@ def main():
     output_image_file_base = os.path.splitext(json_file_path)[0]
 
     # Configure logging
-    configure_logging()
+    configure_logging(lower_height, upper_height)
 
     # Calculate optimal workers
     fetch_workers, json_workers = determine_optimal_workers()
