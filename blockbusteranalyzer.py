@@ -383,6 +383,7 @@ def default(obj):
 log_file = None
 start_time = datetime.now(timezone.utc)
 file_timestamp = start_time.strftime('%Y%m%d_%H%M%S')
+log_file = f"error_log_{lower_height}_to_{upper_height}_{file_timestamp}.log"  # Ensure log file name is set globally
 
 def configure_logging(lower_height, upper_height):
     global log_file
