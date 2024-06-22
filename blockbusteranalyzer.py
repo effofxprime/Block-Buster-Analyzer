@@ -32,7 +32,7 @@ import time as tm
 import requests
 import requests_unixsocket
 from urllib.parse import quote_plus
-from tqdm import tqdm, trange
+from tqdm.asyncio import tqdm  # Updated to use tqdm.asyncio for async progress bar
 from http.client import IncompleteRead
 import logging
 import psutil  # For system load monitoring
@@ -97,6 +97,10 @@ async def fetch_block_info_aiohttp(session, endpoint_url, height):
             error_message = f"Error fetching block {height} from {endpoint_url}: {e}. Attempt {attempt}. Retrying in {backoff_factor ** attempt} seconds."
             logging.error(error_message)
             await asyncio.sleep(backoff_factor ** attempt)
+        except Exception as e:
+            error_message = f"Catch all unknown error fetching block {height} from {endpoint_url}: {e}."
+            logging.error(error_message)
+            await asyncio.sleep(backoff_factor ** attempt)
 
 def fetch_block_info_socket(endpoint_url, height):
     backoff_factor = 1.5
@@ -110,6 +114,12 @@ def fetch_block_info_socket(endpoint_url, height):
         except (requests.exceptions.RequestException) as e:
             attempt += 1
             error_message = f"Error fetching block {height} from {endpoint_url}: {e}. Attempt {attempt}. Retrying in {backoff_factor ** attempt} seconds."
+            logging.error(error_message)
+            with open(log_file, 'a') as log:
+                log.write(f"{datetime.now(timezone.utc)} - ERROR - {error_message}\n")
+            tm.sleep(backoff_factor ** attempt)
+        except Exception as e:
+            error_message = f"Catch all unknown error fetching block {height} from {endpoint_url}: {e}."
             logging.error(error_message)
             with open(log_file, 'a') as log:
                 log.write(f"{datetime.now(timezone.utc)} - ERROR - {error_message}\n")
@@ -159,6 +169,9 @@ def find_lowest_height(endpoint_type, endpoint_url):
     except requests.RequestException as e:
         logging.error(f"RequestException while finding the lowest height from {endpoint_url} using {endpoint_type}: {e}")
         return None
+    except Exception as e:
+        logging.error(f"Catch all unknown error while finding the lowest height from {endpoint_url} using {endpoint_type}: {e}")
+        return None
 
     return 1
 
@@ -172,6 +185,8 @@ def parse_timestamp(timestamp):
         return datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%SZ")
     except ValueError:
         raise ValueError(f"time data '{timestamp}' does not match any known format")
+    except Exception as e:
+        raise ValueError(f"Catch all unknown error parsing timestamp '{timestamp}': {e}")
 
 # LOCKED
 def process_block(height, endpoint_type, endpoint_url):
@@ -215,6 +230,10 @@ def categorize_block(block, categories):
     except ValueError:
         logging.error(f"Error converting block size to float: {block['size']} for block {block['height']}")
         return
+    except Exception as e:
+        logging.error(f"Catch all unknown error converting block size to float: {block['size']} for block {block['height']}: {e}")
+        return
+
     if size < 1:
         categories["less_than_1MB"].append(block)
     elif 1 <= size < 2:
@@ -443,6 +462,7 @@ def main():
             generate_graphs_and_table(data["block_data"], output_image_file_base, lower_height, upper_height)
         except Exception as e:
             logging.error(f"Error processing JSON file: {e}")
+            logging.error(f"Catch all unknown error processing JSON file: {e}")
         return
 
     # Check endpoint availability
@@ -512,6 +532,7 @@ def main():
                 except Exception as e:
                     error_message = f"Error processing future result: {e}"
                     logging.error(error_message)
+                    logging.error(f"Catch all unknown error processing future result: {e}")
                     with open(log_file, 'a') as log:
                         log.write(f"{datetime.now(timezone.utc)} - ERROR - {error_message}\n")
 
