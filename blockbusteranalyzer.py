@@ -8,8 +8,8 @@
 # @Twitter - https://twitter.com/ErialosOfAstora
 # @Date - 2024-06-06 15:19:00 UTC
 # @Last_Modified_By - Jonathan - Erialos
-# @Last_Modified_Time - 2024-06-21 17:45:00 UTC
-# @Version - 1.0.24
+# @Last_Modified_Time - 2024-06-22 15:19:00 UTC
+# @Version - 1.0.25
 # @Description - This script analyzes block sizes in a blockchain and generates various visualizations.
 
 # LOCKED - Only edit when we need to add or remove imports
@@ -32,10 +32,11 @@ import time as tm
 import requests
 import requests_unixsocket
 from urllib.parse import quote_plus
-from tqdm import tqdm
+from tqdm import tqdm, trange
 from http.client import IncompleteRead
 import logging
 import psutil  # For system load monitoring
+import httpx
 
 # LOCKED
 # Define colors for console output
@@ -83,23 +84,22 @@ def check_endpoint(endpoint_type, endpoint_url):
 
 # LOCKED
 def fetch_block_info(endpoint_type, endpoint_url, height):
-    retries = 3
     backoff_factor = 1.5
-    for attempt in range(retries):
+    attempt = 0
+    while True:
         try:
             if endpoint_type == "socket":
                 session = requests_unixsocket.Session()
                 encoded_url = f"http+unix://{quote_plus(endpoint_url)}/block?height={height}"
                 response = session.get(encoded_url, timeout=10)
             else:
-                response = requests.get(f"{endpoint_url}/block?height={height}", timeout=10)
+                response = httpx.get(f"{endpoint_url}/block?height={height}", timeout=10)
                 response.raise_for_status()
             return response.json()
-        except (requests.RequestException, requests.exceptions.ConnectionError, IncompleteRead) as e:
-            logging.error(f"Error fetching block {height} from {endpoint_url} using {endpoint_type}: {e}. Attempt {attempt + 1}/{retries}. Retrying in {backoff_factor ** attempt} seconds.")
+        except (httpx.RequestError, requests.exceptions.ConnectionError, IncompleteRead) as e:
+            attempt += 1
+            logging.error(f"Error fetching block {height} from {endpoint_url} using {endpoint_type}: {e}. Attempt {attempt}. Retrying in {backoff_factor ** attempt} seconds.")
             tm.sleep(backoff_factor ** attempt)
-    logging.error(f"Failed to fetch block {height} after {retries} attempts.")
-    return None
 
 # LOCKED
 def find_lowest_height(endpoint_type, endpoint_url):
@@ -326,7 +326,7 @@ def generate_graphs_and_table(block_data, output_image_file_base, lower_height, 
 def determine_optimal_workers():
     cpu_count = os.cpu_count()
     system_load = psutil.getloadavg()[0]  # 1 minute system load average
-    optimal_fetch_workers = max(1, min(cpu_count, int(cpu_count / (system_load + 1))))
+    optimal_fetch_workers = max(1, min(cpu_count * 2, int(cpu_count / (system_load + 0.5))))
     optimal_json_workers = cpu_count  # Assuming reading JSON is less intensive
     return optimal_fetch_workers, optimal_json_workers
 
@@ -362,7 +362,6 @@ def main():
     endpoint_url = sys.argv[4]
 
     start_time = datetime.now(timezone.utc)
-    current_date = start_time.strftime("%B %A %d, %Y %H:%M:%S UTC")
     file_timestamp = start_time.strftime('%Y%m%d_%H%M%S')
 
     # Ensure the json_file_path and log_file follow the correct naming convention
@@ -441,8 +440,9 @@ def main():
         heights = range(lower_height, upper_height + 1)
         futures = [executor.submit(process_block, height, connection_type, endpoint_url) for height in heights]
 
+        tqdm_progress = tqdm(total=len(futures), desc="Fetching blocks (TQDM Progress)", bar_format="{l_bar}%s{bar}%s{r_bar}" % (bash_color_light_blue, bash_color_reset))
         with open(json_file_path, 'w') as f:
-            for future in tqdm(as_completed(futures), total=len(futures), desc="Fetching blocks (TQDM Progress)"):
+            for future in as_completed(futures):
                 if shutdown_event.is_set():
                     logging.info("Shutdown event detected. Exiting.")
                     print(f"{bash_color_red}Shutdown event detected. Exiting...{bash_color_reset}")
@@ -463,7 +463,8 @@ def main():
                 elapsed_time = tm.time() - start_script_time
                 estimated_total_time = elapsed_time / completed * total_blocks if completed else 0
                 time_left = estimated_total_time - elapsed_time
-                print(f"{bash_color_light_blue}Progress (Custom): {progress:.2f}% ({completed}/{total_blocks}) - Estimated time left: {timedelta(seconds=int(time_left))}", end='\r', flush=True)
+                tqdm_progress.update(1)
+                print(f"{bash_color_light_blue}Progress (Custom): {progress:.2f}% ({completed}/{total_blocks}) - Estimated time left: {timedelta(seconds=int(time_left))}{bash_color_reset}", end='\r', flush=True)
 
     print("\n")
 
