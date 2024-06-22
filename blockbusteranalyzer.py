@@ -558,4 +558,4 @@ def main():
     generate_graphs_and_table(block_data, output_image_file_base, lower_height, upper_height)
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
