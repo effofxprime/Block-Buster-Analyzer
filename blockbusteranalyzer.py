@@ -75,9 +75,9 @@ def check_endpoint(endpoint_type, endpoint_url):
         if endpoint_type == "socket":
             session = requests_unixsocket.Session()
             encoded_url = f"http+unix://{quote_plus(endpoint_url)}/health"
-            response = session.get(encoded_url, timeout=5)
+            response = session.get(encoded_url, timeout=3)
         else:
-            response = requests.get(f"{endpoint_url}/health", timeout=5)
+            response = requests.get(f"{endpoint_url}/health", timeout=3)
         return response.status_code == 200
     except requests.RequestException:
         return False
@@ -91,14 +91,16 @@ def fetch_block_info(endpoint_type, endpoint_url, height):
             if endpoint_type == "socket":
                 session = requests_unixsocket.Session()
                 encoded_url = f"http+unix://{quote_plus(endpoint_url)}/block?height={height}"
-                response = session.get(encoded_url, timeout=10)
+                response = session.get(encoded_url, timeout=3)
             else:
-                response = httpx.get(f"{endpoint_url}/block?height={height}", timeout=10)
+                response = httpx.get(f"{endpoint_url}/block?height={height}", timeout=3)
                 response.raise_for_status()
             return response.json()
         except (httpx.RequestError, requests.exceptions.ConnectionError, IncompleteRead) as e:
             attempt += 1
             logging.error(f"Error fetching block {height} from {endpoint_url} using {endpoint_type}: {e}. Attempt {attempt}. Retrying in {backoff_factor ** attempt} seconds.")
+            with open(log_file, 'a') as log:
+                log.write(f"{datetime.now(timezone.utc)} - ERROR - Error fetching block {height} from {endpoint_url} using {endpoint_type}: {e}. Attempt {attempt}. Retrying in {backoff_factor ** attempt} seconds.\n")
             tm.sleep(backoff_factor ** attempt)
 
 # LOCKED
@@ -107,9 +109,9 @@ def find_lowest_height(endpoint_type, endpoint_url):
         if endpoint_type == "socket":
             session = requests_unixsocket.Session()
             encoded_url = f"http+unix://{quote_plus(endpoint_url)}/block?height=1"
-            response = session.get(encoded_url, timeout=10)
+            response = session.get(encoded_url, timeout=3)
         else:
-            response = requests.get(f"{endpoint_url}/block?height=1", timeout=10)
+            response = requests.get(f"{endpoint_url}/block?height=1", timeout=3)
             response.raise_for_status()
         block_info = response.json()
         if 'error' in block_info and 'data' in block_info['error']:
@@ -326,7 +328,7 @@ def generate_graphs_and_table(block_data, output_image_file_base, lower_height, 
 def determine_optimal_workers():
     cpu_count = os.cpu_count()
     system_load = psutil.getloadavg()[0]  # 1 minute system load average
-    optimal_fetch_workers = max(1, min(cpu_count * 2, int(cpu_count / (system_load + 0.5))))
+    optimal_fetch_workers = max(1, min(cpu_count * 10, int(cpu_count / (system_load + 0.5))))
     optimal_json_workers = cpu_count  # Assuming reading JSON is less intensive
     return optimal_fetch_workers, optimal_json_workers
 
