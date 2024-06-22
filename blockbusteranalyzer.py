@@ -440,7 +440,7 @@ def main():
         heights = range(lower_height, upper_height + 1)
         futures = [executor.submit(process_block, height, connection_type, endpoint_url) for height in heights]
 
-        tqdm_progress = tqdm(total=len(futures), desc="Fetching Blocks", unit="block", bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}}{{r_bar}}\n{bash_color_reset}")
+        tqdm_progress = tqdm(total=len(futures), desc="Fetching Blocks", unit="block", bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}}{{r_bar}}{bash_color_reset}", ncols=80)
         with open(json_file_path, 'w') as f:
             for future in as_completed(futures):
                 if shutdown_event.is_set():
@@ -459,12 +459,11 @@ def main():
                         log.write(f"{datetime.now(timezone.utc)} - ERROR - Error processing future result: {e}\n")
 
                 completed = len(block_data)
-                progress = (completed / total_blocks) * 100
                 elapsed_time = tm.time() - start_script_time
                 estimated_total_time = elapsed_time / completed * total_blocks if completed else 0
                 time_left = estimated_total_time - elapsed_time
 
-                tqdm_progress.set_postfix_str(f"Elapsed: {timedelta(seconds=int(elapsed_time))}, Left: {timedelta(seconds=int(time_left))}, Speed: {completed / elapsed_time:.2f} blocks/s", refresh=False)
+                tqdm_progress.set_postfix_str(f"[Blocks: {completed}/{total_blocks}, Elapsed: {timedelta(seconds=int(elapsed_time))}, Remaining: {timedelta(seconds=int(time_left))}, Speed: {completed / elapsed_time:.2f} blocks/s]", refresh=True)
                 tqdm_progress.update(1)
 
     print("\n")
