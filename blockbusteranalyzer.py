@@ -398,7 +398,7 @@ def main():
     output_image_file_base = os.path.splitext(json_file_path)[0]
     log_file = f"error_log_{lower_height}_to_{upper_height}_{file_timestamp}.log"
 
-    logging.basicConfig(filename=log_file, level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
+    logging.basicConfig(filename=log_file, level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
     logging.getLogger().handlers = [h for h in logging.getLogger().handlers if isinstance(h, logging.FileHandler)]
 
     # Calculate optimal workers
