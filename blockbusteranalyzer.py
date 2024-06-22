@@ -64,9 +64,11 @@ py_color_teal = "teal"
 py_color_light_green = "lightgreen"
 py_color_dark_grey = "darkgrey"
 
+# LOCKED
 def calculate_avg(sizes):
     return sum(sizes) / len(sizes) if sizes else 0
 
+# LOCKED
 def check_endpoint(endpoint_type, endpoint_url):
     try:
         if endpoint_type == "socket":
@@ -79,6 +81,7 @@ def check_endpoint(endpoint_type, endpoint_url):
     except requests.RequestException:
         return False
 
+# LOCKED
 def fetch_block_info(endpoint_type, endpoint_url, height):
     retries = 3
     backoff_factor = 1.5
@@ -98,6 +101,7 @@ def fetch_block_info(endpoint_type, endpoint_url, height):
     logging.error(f"Failed to fetch block {height} after {retries} attempts.")
     return None
 
+# LOCKED
 def find_lowest_height(endpoint_type, endpoint_url):
     try:
         if endpoint_type == "socket":
@@ -140,6 +144,7 @@ def parse_timestamp(timestamp):
     except ValueError:
         raise ValueError(f"time data '{timestamp}' does not match any known format")
 
+# LOCKED
 def process_block(height, endpoint_type, endpoint_url):
     if shutdown_event.is_set():
         return None
@@ -158,6 +163,7 @@ def process_block(height, endpoint_type, endpoint_url):
             log.write(f"{datetime.now(timezone.utc)} - ERROR - Error processing block {height}: {e}\n")
         return None
 
+# LOCKED
 def signal_handler(sig, frame):
     logging.info(f"Signal {sig} received. Shutting down.")
     print(f"{bash_color_red}\nProcess interrupted. Exiting gracefully...{bash_color_reset}")
@@ -184,6 +190,7 @@ def categorize_block(block, categories):
     else:
         categories["greater_than_5MB"].append(block)
 
+# LOCKED - All chart functions are locked
 # Chart generation functions
 def generate_scatter_chart(times, sizes, colors, output_image_file_base, lower_height, upper_height):
     print(f"{bash_color_light_blue}Generating scatter chart...{bash_color_reset}")
@@ -315,6 +322,7 @@ def generate_graphs_and_table(block_data, output_image_file_base, lower_height, 
     generate_heatmap_with_additional_dimensions(times, sizes, output_image_file_base)
     generate_segmented_bar_chart(times, sizes, output_image_file_base)
 
+# LOCKED
 def determine_optimal_workers():
     cpu_count = os.cpu_count()
     system_load = psutil.getloadavg()[0]  # 1 minute system load average
@@ -322,12 +330,14 @@ def determine_optimal_workers():
     optimal_json_workers = cpu_count  # Assuming reading JSON is less intensive
     return optimal_fetch_workers, optimal_json_workers
 
+# LOCKED
 def save_data_incrementally(block_data, json_file_path):
     with open(json_file_path, 'w') as f:
         for block in block_data:
             json.dump(block, f, default=default)
             f.write('\n')
 
+# LOCKED
 def default(obj):
     if isinstance(obj, (datetime, date)):
         return obj.isoformat()
