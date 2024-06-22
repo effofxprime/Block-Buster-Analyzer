@@ -419,41 +419,41 @@ def main():
 
     json_file_path = f"{output_image_file_base}.json"
     with ThreadPoolExecutor(max_workers=fetch_workers) as executor:
-    block_data = []
-    logging.info("Fetching block information. This may take a while for large ranges. Please wait.")
-    print(f"{bash_color_light_blue}\nFetching block information. This may take a while for large ranges. Please wait...{bash_color_reset}")
+        block_data = []
+        logging.info("Fetching block information. This may take a while for large ranges. Please wait.")
+        print(f"{bash_color_light_blue}\nFetching block information. This may take a while for large ranges. Please wait...{bash_color_reset}")
 
-    start_script_time = tm.time()
-    total_blocks = upper_height - lower_height + 1
+        start_script_time = tm.time()
+        total_blocks = upper_height - lower_height + 1
 
-    print(f"{bash_color_dark_grey}\n{'='*40}\n{bash_color_reset}")
+        print(f"{bash_color_dark_grey}\n{'='*40}\n{bash_color_reset}")
 
-    heights = range(lower_height, upper_height + 1)
-    futures = [executor.submit(process_block, height, connection_type, endpoint_url) for height in heights]
+        heights = range(lower_height, upper_height + 1)
+        futures = [executor.submit(process_block, height, connection_type, endpoint_url) for height in heights]
 
-    with open(json_file_path, 'w') as f:
-        for future in tqdm(as_completed(futures), total=len(futures), desc="Fetching blocks (TQDM Progress)"):
-            if shutdown_event.is_set():
-                logging.info("Shutdown event detected. Exiting.")
-                print(f"{bash_color_red}Shutdown event detected. Exiting...{bash_color_reset}")
-                break
-            try:
-                result = future.result()
-                if result:
-                    block = {"height": result[0], "size": result[1], "time": result[2]}
-                    block_data.append(block)
-                    f.write(json.dumps(block, default=default) + '\n')
-            except Exception as e:
-                logging.error(f"Error processing future result: {e}")
-                with open(log_file, 'a') as log:
-                    log.write(f"{datetime.now(timezone.utc)} - ERROR - Error processing future result: {e}\n")
+        with open(json_file_path, 'w') as f:
+            for future in tqdm(as_completed(futures), total=len(futures), desc="Fetching blocks (TQDM Progress)"):
+                if shutdown_event.is_set():
+                    logging.info("Shutdown event detected. Exiting.")
+                    print(f"{bash_color_red}Shutdown event detected. Exiting...{bash_color_reset}")
+                    break
+                try:
+                    result = future.result()
+                    if result:
+                        block = {"height": result[0], "size": result[1], "time": result[2]}
+                        block_data.append(block)
+                        f.write(json.dumps(block, default=default) + '\n')
+                except Exception as e:
+                    logging.error(f"Error processing future result: {e}")
+                    with open(log_file, 'a') as log:
+                        log.write(f"{datetime.now(timezone.utc)} - ERROR - Error processing future result: {e}\n")
 
-            completed = len(block_data)
-            progress = (completed / total_blocks) * 100
-            elapsed_time = tm.time() - start_script_time
-            estimated_total_time = elapsed_time / completed * total_blocks if completed else 0
-            time_left = estimated_total_time - elapsed_time
-            print(f"{bash_color_light_blue}Progress (Custom): {progress:.2f}% ({completed}/{total_blocks}) - Estimated time left: {timedelta(seconds=int(time_left))}", end='\r', flush=True)
+                completed = len(block_data)
+                progress = (completed / total_blocks) * 100
+                elapsed_time = tm.time() - start_script_time
+                estimated_total_time = elapsed_time / completed * total_blocks if completed else 0
+                time_left = estimated_total_time - elapsed_time
+                print(f"{bash_color_light_blue}Progress (Custom): {progress:.2f}% ({completed}/{total_blocks}) - Estimated time left: {timedelta(seconds=int(time_left))}", end='\r', flush=True)
 
     print("\n")
 
