@@ -174,7 +174,10 @@ def process_block(height, endpoint_type, endpoint_url):
         return None
     try:
         if endpoint_type == "tcp":
-            block_info = asyncio.run(fetch_block_info_aiohttp(endpoint_url, height))
+            async def fetch():
+                async with aiohttp.ClientSession() as session:
+                    return await fetch_block_info_aiohttp(session, endpoint_url, height)
+            block_info = asyncio.run(fetch())
         else:
             block_info = fetch_block_info_socket(endpoint_url, height)
         if block_info is None:
