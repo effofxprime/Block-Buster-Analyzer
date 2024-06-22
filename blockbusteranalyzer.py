@@ -8,8 +8,8 @@
 # @Twitter - https://twitter.com/ErialosOfAstora
 # @Date - 2024-06-06 15:19:00 UTC
 # @Last_Modified_By - Jonathan - Erialos
-# @Last_Modified_Time - 2024-06-22 15:19:00 UTC
-# @Version - 1.0.26
+# @Last_Modified_Time - 2024-06-23 16:00:00 UTC
+# @Version - 1.0.27
 # @Description - This script analyzes block sizes in a blockchain and generates various visualizations.
 
 # LOCKED - Only edit when we need to add or remove imports
@@ -119,7 +119,12 @@ async def fetch_all_blocks(endpoint_type, endpoint_url, heights):
     if endpoint_type == "tcp":
         async with aiohttp.ClientSession() as session:
             tasks = [fetch_block_info_aiohttp(session, endpoint_url, height) for height in heights]
-            return await asyncio.gather(*tasks)
+            results = []
+            for task in asyncio.as_completed(tasks):
+                result = await task
+                results.append(result)
+                tqdm_progress.update(1)
+            return results
     else:
         with requests_unixsocket.Session() as session:
             results = [fetch_block_info_socket(endpoint_url, height) for height in heights]
