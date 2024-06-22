@@ -440,7 +440,7 @@ def main():
         heights = range(lower_height, upper_height + 1)
         futures = [executor.submit(process_block, height, connection_type, endpoint_url) for height in heights]
 
-        tqdm_progress = tqdm(total=len(futures), desc="Fetching Blocks", unit="block", bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}}{{r_bar}}{bash_color_reset}", ncols=80)
+        tqdm_progress = tqdm(total=len(futures), desc="Fetching Blocks", unit="block", bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}}{{r_bar}}{bash_color_reset}", ncols=100)
         with open(json_file_path, 'w') as f:
             for future in as_completed(futures):
                 if shutdown_event.is_set():
