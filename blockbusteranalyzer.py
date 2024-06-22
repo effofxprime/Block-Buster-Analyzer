@@ -463,8 +463,11 @@ def main():
                 elapsed_time = tm.time() - start_script_time
                 estimated_total_time = elapsed_time / completed * total_blocks if completed else 0
                 time_left = estimated_total_time - elapsed_time
+
                 tqdm_progress.update(1)
-                print(f"{bash_color_light_blue}Progress (Custom): {progress:.2f}% ({completed}/{total_blocks}) - Estimated time left: {timedelta(seconds=int(time_left))}{bash_color_reset}", end='\r', flush=True)
+
+            # Print the custom progress after updating TQDM
+            print(f"{bash_color_light_blue}Progress (Custom): {progress:.2f}% ({completed}/{total_blocks}) - Estimated time left: {timedelta(seconds=int(time_left))}{bash_color_reset}", end='\r', flush=True)
 
     print("\n")
 
