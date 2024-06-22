@@ -98,9 +98,10 @@ def fetch_block_info(endpoint_type, endpoint_url, height):
             return response.json()
         except (httpx.RequestError, requests.exceptions.ConnectionError, IncompleteRead) as e:
             attempt += 1
-            logging.error(f"Error fetching block {height} from {endpoint_url} using {endpoint_type}: {e}. Attempt {attempt}. Retrying in {backoff_factor ** attempt} seconds.")
+            error_message = f"Error fetching block {height} from {endpoint_url} using {endpoint_type}: {e}. Attempt {attempt}. Retrying in {backoff_factor ** attempt} seconds."
+            logging.error(error_message)
             with open(log_file, 'a') as log:
-                log.write(f"{datetime.now(timezone.utc)} - ERROR - Error fetching block {height} from {endpoint_url} using {endpoint_type}: {e}. Attempt {attempt}. Retrying in {backoff_factor ** attempt} seconds.\n")
+                log.write(f"{datetime.now(timezone.utc)} - ERROR - {error_message}\n")
             tm.sleep(backoff_factor ** attempt)
 
 # LOCKED
@@ -160,9 +161,10 @@ def process_block(height, endpoint_type, endpoint_url):
         block_time = parse_timestamp(block_info['result']['block']['header']['time'])
         return (height, block_size_mb, block_time)
     except Exception as e:
-        logging.error(f"Error processing block {height} from {endpoint_url} using {endpoint_type}: {e}")
+        error_message = f"Error processing block {height} from {endpoint_url} using {endpoint_type}: {e}"
+        logging.error(error_message)
         with open(log_file, 'a') as log:
-            log.write(f"{datetime.now(timezone.utc)} - ERROR - Error processing block {height}: {e}\n")
+            log.write(f"{datetime.now(timezone.utc)} - ERROR - {error_message}\n")
         return None
 
 # LOCKED
@@ -442,32 +444,34 @@ def main():
         heights = range(lower_height, upper_height + 1)
         futures = [executor.submit(process_block, height, connection_type, endpoint_url) for height in heights]
 
-        tqdm_progress = tqdm(total=len(futures), desc="Fetching Blocks", unit="block", bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}}{{r_bar}}{bash_color_reset}", ncols=100)
-        with open(json_file_path, 'w') as f:
-            for future in as_completed(futures):
-                if shutdown_event.is_set():
-                    logging.info("Shutdown event detected. Exiting.")
-                    print(f"{bash_color_red}Shutdown event detected. Exiting...{bash_color_reset}")
-                    break
-                try:
-                    result = future.result()
-                    if result:
-                        block = {"height": result[0], "size": result[1], "time": result[2]}
-                        block_data.append(block)
-                        f.write(json.dumps(block, default=default) + '\n')
-                except Exception as e:
-                    logging.error(f"Error processing future result: {e}")
-                    with open(log_file, 'a') as log:
-                        log.write(f"{datetime.now(timezone.utc)} - ERROR - Error processing future result: {e}\n")
+        tqdm_progress = tqdm(total=len(futures), desc="Fetching Blocks", unit="block", bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}}{{r_bar}}{bash_color_reset}")
+    with open(json_file_path, 'w') as f:
+        for future in as_completed(futures):
+            if shutdown_event.is_set():
+                logging.info("Shutdown event detected. Exiting.")
+                print(f"{bash_color_red}Shutdown event detected. Exiting...{bash_color_reset}")
+                break
+            try:
+                result = future.result()
+                if result:
+                    block = {"height": result[0], "size": result[1], "time": result[2]}
+                    block_data.append(block)
+                    f.write(json.dumps(block, default=default) + '\n')
+            except Exception as e:
+                error_message = f"Error processing future result: {e}"
+                logging.error(error_message)
+                with open(log_file, 'a') as log:
+                    log.write(f"{datetime.now(timezone.utc)} - ERROR - {error_message}\n")
 
-                completed = len(block_data)
-                elapsed_time = tm.time() - start_script_time
-                estimated_total_time = elapsed_time / completed * total_blocks if completed else 0
-                time_left = estimated_total_time - elapsed_time
+            completed = len(block_data)
+            elapsed_time = tm.time() - start_script_time
+            estimated_total_time = elapsed_time / completed * total_blocks if completed else 0
+            time_left = estimated_total_time - elapsed_time
 
-                tqdm_progress.set_postfix_str(f"[Blocks: {completed}/{total_blocks}, Elapsed: {timedelta(seconds=int(elapsed_time))}, Remaining: {timedelta(seconds=int(time_left))}, Speed: {completed / elapsed_time:.2f} blocks/s]", refresh=True)
-                tqdm_progress.update(1)
+            tqdm_progress.set_postfix_str(f"[Blocks: {completed}/{total_blocks}, Elapsed: {timedelta(seconds=int(elapsed_time))}, Remaining: {timedelta(seconds=int(time_left))}, Speed: {completed / elapsed_time:.2f} blocks/s]", refresh=True)
+            tqdm_progress.update(1)
 
+    tqdm_progress.close()  # Ensure the progress bar is closed properly
     print("\n")
 
     if shutdown_event.is_set():
