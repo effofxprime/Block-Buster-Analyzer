@@ -410,7 +410,7 @@ def configure_logging(lower_height, upper_height):
     logging.getLogger().handlers = [h for h in logging.getLogger().handlers if isinstance(h, logging.FileHandler)]
     logging.info("Logging configured globally.")
 
-def main():
+async def main():
     global shutdown_event, executor, json_file_path  # Add json_file_path as a global variable
     shutdown_event = threading.Event()
 
