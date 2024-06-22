@@ -92,7 +92,7 @@ async def fetch_block_info_aiohttp(session, endpoint_url, height):
             async with session.get(f"{endpoint_url}/block?height={height}") as response:
                 response.raise_for_status()
                 return await response.json()
-        except (aiohttp.ClientError, aiohttp.http_exceptions.HttpProcessingError) as e:
+        except (aiohttp.ClientError, aiohttp.http_exceptions.HttpProcessingError, aiohttp.ClientPayloadError) as e:
             attempt += 1
             error_message = f"Error fetching block {height} from {endpoint_url}: {e}. Attempt {attempt}. Retrying in {backoff_factor ** attempt} seconds."
             logging.error(error_message)
@@ -115,7 +115,7 @@ def fetch_block_info_socket(endpoint_url, height):
                 log.write(f"{datetime.now(timezone.utc)} - ERROR - {error_message}\n")
             tm.sleep(backoff_factor ** attempt)
 
-async def fetch_all_blocks(endpoint_type, endpoint_url, heights):
+async def fetch_all_blocks(endpoint_type, endpoint_url, heights, tqdm_progress):
     if endpoint_type == "tcp":
         async with aiohttp.ClientSession() as session:
             tasks = [fetch_block_info_aiohttp(session, endpoint_url, height) for height in heights]
@@ -204,9 +204,8 @@ def signal_handler(sig, frame):
     logging.info(f"Signal {sig} received. Shutting down.")
     print(f"{bash_color_red}\nProcess interrupted. Exiting gracefully...{bash_color_reset}")
     shutdown_event.set()
-    tasks = asyncio.all_tasks()
-    for task in tasks:
-        task.cancel()
+    loop = asyncio.get_event_loop()
+    loop.stop()
     sys.exit(0)
 
 # LOCKED
@@ -380,8 +379,17 @@ def default(obj):
         return obj.isoformat()
     raise TypeError("Type not serializable")
 
+# Set up logging configuration globally
+log_file = None
+
+def configure_logging(lower_height, upper_height, file_timestamp):
+    global log_file
+    log_file = f"error_log_{lower_height}_to_{upper_height}_{file_timestamp}.log"
+    logging.basicConfig(filename=log_file, level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+    logging.getLogger().handlers = [h for h in logging.getLogger().handlers if isinstance(h, logging.FileHandler)]
+
 def main():
-    global shutdown_event, executor, log_file, json_file_path  # Add log_file and json_file_path as global variables
+    global shutdown_event, executor, json_file_path  # Add json_file_path as a global variable
     shutdown_event = threading.Event()
 
     signal.signal(signal.SIGINT, signal_handler)
@@ -401,13 +409,12 @@ def main():
     start_time = datetime.now(timezone.utc)
     file_timestamp = start_time.strftime('%Y%m%d_%H%M%S')
 
-    # Ensure the json_file_path and log_file follow the correct naming convention
+    # Ensure the json_file_path follows the correct naming convention
     json_file_path = sys.argv[5] if len(sys.argv) == 6 else f"block_sizes_{lower_height}_to_{upper_height}_{file_timestamp}.json"
     output_image_file_base = os.path.splitext(json_file_path)[0]
-    log_file = f"error_log_{lower_height}_to_{upper_height}_{file_timestamp}.log"
 
-    logging.basicConfig(filename=log_file, level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
-    logging.getLogger().handlers = [h for h in logging.getLogger().handlers if isinstance(h, logging.FileHandler)]
+    # Configure logging
+    configure_logging(lower_height, upper_height, file_timestamp)
 
     # Calculate optimal workers
     fetch_workers, json_workers = determine_optimal_workers()
