@@ -9,7 +9,7 @@
 # @Date - 2024-06-06 15:19:00 UTC
 # @Last_Modified_By - Jonathan - Erialos
 # @Last_Modified_Time - 2024-06-22 15:19:00 UTC
-# @Version - 1.0.25
+# @Version - 1.0.26
 # @Description - This script analyzes block sizes in a blockchain and generates various visualizations.
 
 # LOCKED - Only edit when we need to add or remove imports
@@ -36,7 +36,8 @@ from tqdm import tqdm, trange
 from http.client import IncompleteRead
 import logging
 import psutil  # For system load monitoring
-import httpx
+import aiohttp
+import asyncio
 
 # LOCKED
 # Define colors for console output
@@ -83,26 +84,46 @@ def check_endpoint(endpoint_type, endpoint_url):
         return False
 
 # LOCKED
-def fetch_block_info(endpoint_type, endpoint_url, height):
+async def fetch_block_info_aiohttp(session, endpoint_url, height):
     backoff_factor = 1.5
     attempt = 0
     while True:
         try:
-            if endpoint_type == "socket":
-                session = requests_unixsocket.Session()
-                encoded_url = f"http+unix://{quote_plus(endpoint_url)}/block?height={height}"
-                response = session.get(encoded_url, timeout=3)
-            else:
-                response = httpx.get(f"{endpoint_url}/block?height={height}", timeout=3)
+            async with session.get(f"{endpoint_url}/block?height={height}") as response:
                 response.raise_for_status()
-            return response.json()
-        except (httpx.RequestError, requests.exceptions.ConnectionError, IncompleteRead) as e:
+                return await response.json()
+        except (aiohttp.ClientError, aiohttp.http_exceptions.HttpProcessingError) as e:
             attempt += 1
-            error_message = f"Error fetching block {height} from {endpoint_url} using {endpoint_type}: {e}. Attempt {attempt}. Retrying in {backoff_factor ** attempt} seconds."
+            error_message = f"Error fetching block {height} from {endpoint_url}: {e}. Attempt {attempt}. Retrying in {backoff_factor ** attempt} seconds."
+            logging.error(error_message)
+            await asyncio.sleep(backoff_factor ** attempt)
+
+def fetch_block_info_socket(endpoint_url, height):
+    backoff_factor = 1.5
+    attempt = 0
+    while True:
+        try:
+            encoded_url = f"http+unix://{quote_plus(endpoint_url)}/block?height={height}"
+            response = requests_unixsocket.Session().get(encoded_url, timeout=3)
+            response.raise_for_status()
+            return response.json()
+        except (requests.exceptions.RequestException) as e:
+            attempt += 1
+            error_message = f"Error fetching block {height} from {endpoint_url}: {e}. Attempt {attempt}. Retrying in {backoff_factor ** attempt} seconds."
             logging.error(error_message)
             with open(log_file, 'a') as log:
                 log.write(f"{datetime.now(timezone.utc)} - ERROR - {error_message}\n")
             tm.sleep(backoff_factor ** attempt)
+
+async def fetch_all_blocks(endpoint_type, endpoint_url, heights):
+    if endpoint_type == "tcp":
+        async with aiohttp.ClientSession() as session:
+            tasks = [fetch_block_info_aiohttp(session, endpoint_url, height) for height in heights]
+            return await asyncio.gather(*tasks)
+    else:
+        with requests_unixsocket.Session() as session:
+            results = [fetch_block_info_socket(endpoint_url, height) for height in heights]
+            return results
 
 # LOCKED
 def find_lowest_height(endpoint_type, endpoint_url):
@@ -152,7 +173,10 @@ def process_block(height, endpoint_type, endpoint_url):
     if shutdown_event.is_set():
         return None
     try:
-        block_info = fetch_block_info(endpoint_type, endpoint_url, height)
+        if endpoint_type == "tcp":
+            block_info = asyncio.run(fetch_block_info_aiohttp(endpoint_url, height))
+        else:
+            block_info = fetch_block_info_socket(endpoint_url, height)
         if block_info is None:
             return None
 
@@ -172,8 +196,9 @@ def signal_handler(sig, frame):
     logging.info(f"Signal {sig} received. Shutting down.")
     print(f"{bash_color_red}\nProcess interrupted. Exiting gracefully...{bash_color_reset}")
     shutdown_event.set()
-    if executor:
-        executor.shutdown(wait=False)
+    tasks = asyncio.all_tasks()
+    for task in tasks:
+        task.cancel()
     sys.exit(0)
 
 # LOCKED
@@ -374,6 +399,7 @@ def main():
     log_file = f"error_log_{lower_height}_to_{upper_height}_{file_timestamp}.log"
 
     logging.basicConfig(filename=log_file, level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
+    logging.getLogger().handlers = [h for h in logging.getLogger().handlers if isinstance(h, logging.FileHandler)]
 
     # Calculate optimal workers
     fetch_workers, json_workers = determine_optimal_workers()
@@ -391,7 +417,7 @@ def main():
                 block["time"] = parse_timestamp(block["time"])
 
             # Infer lower and upper height from JSON file name
-            match = re.search(r"(\d+)-(\d+)", json_file_path)
+            match = re.search(r"(\d+)_to_(\d+)", json_file_path)
             if match:
                 lower_height = int(match.group(1))
                 upper_height = int(match.group(2))
