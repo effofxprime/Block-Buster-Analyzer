@@ -463,11 +463,6 @@ def main():
                     with open(log_file, 'a') as log:
                         log.write(f"{datetime.now(timezone.utc)} - ERROR - {error_message}\n")
 
-                completed = len(block_data)
-                elapsed_time = tm.time() - start_script_time
-                estimated_total_time = elapsed_time / completed * total_blocks if completed else 0
-                time_left = estimated_total_time - elapsed_time
-
                 tqdm_progress.update(1)
 
     tqdm_progress.close()  # Ensure the progress bar is closed properly
