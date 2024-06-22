@@ -440,7 +440,7 @@ def main():
         heights = range(lower_height, upper_height + 1)
         futures = [executor.submit(process_block, height, connection_type, endpoint_url) for height in heights]
 
-        tqdm_progress = tqdm(total=len(futures), desc="Fetching blocks (TQDM Progress)", bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}}{{r_bar}}{bash_color_reset}")
+        tqdm_progress = tqdm(total=len(futures), desc="Fetching blocks (TQDM Progress)", unit="block", bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}}{{r_bar}} {bash_color_reset}")
         with open(json_file_path, 'w') as f:
             for future in as_completed(futures):
                 if shutdown_event.is_set():
@@ -464,7 +464,11 @@ def main():
                 estimated_total_time = elapsed_time / completed * total_blocks if completed else 0
                 time_left = estimated_total_time - elapsed_time
 
+                tqdm_progress.set_postfix_str(f"Elapsed: {timedelta(seconds=int(elapsed_time))}, Left: {timedelta(seconds=int(time_left))}, Speed: {completed / elapsed_time:.2f} blocks/s")
                 tqdm_progress.update(1)
+
+                # Custom progress display below TQDM
+                tqdm.write(f"Blocks Left: {completed}/{total_blocks}\nTime Elapsed/Est. Time left: {timedelta(seconds=int(elapsed_time))}<{timedelta(seconds=int(time_left))}\nSpeed: {completed / elapsed_time:.2f} blocks/s")
 
             # Print the custom progress after updating TQDM
             print(f"{bash_color_light_blue}Progress (Custom): {progress:.2f}% ({completed}/{total_blocks}) - Estimated time left: {timedelta(seconds=int(time_left))}{bash_color_reset}", end='\r', flush=True)
