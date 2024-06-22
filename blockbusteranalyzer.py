@@ -444,7 +444,7 @@ def main():
         heights = range(lower_height, upper_height + 1)
         futures = [executor.submit(process_block, height, connection_type, endpoint_url) for height in heights]
 
-        tqdm_progress = tqdm(total=len(futures), desc="Fetching Blocks", unit="block", bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}}{{r_bar}}{bash_color_reset}")
+        tqdm_progress = tqdm(total=len(futures), desc="Fetching Blocks", unit="block", bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}} [Blocks: {{n}}/{{total}}, Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate:.2f}} blocks/s]{bash_color_reset}")
         with open(json_file_path, 'w') as f:
             for future in as_completed(futures):
                 if shutdown_event.is_set():
@@ -468,7 +468,6 @@ def main():
                 estimated_total_time = elapsed_time / completed * total_blocks if completed else 0
                 time_left = estimated_total_time - elapsed_time
 
-                tqdm_progress.set_postfix_str(f"[Blocks: {completed}/{total_blocks}, Elapsed: {timedelta(seconds=int(elapsed_time))}, Remaining: {timedelta(seconds=int(time_left))}, Speed: {completed / elapsed_time:.2f} blocks/s]", refresh=True)
                 tqdm_progress.update(1)
 
     tqdm_progress.close()  # Ensure the progress bar is closed properly
