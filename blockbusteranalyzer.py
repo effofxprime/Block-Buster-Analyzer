@@ -115,20 +115,20 @@ def fetch_block_info_socket(endpoint_url, height):
                 log.write(f"{datetime.now(timezone.utc)} - ERROR - {error_message}\n")
             tm.sleep(backoff_factor ** attempt)
 
-async def fetch_all_blocks(endpoint_type, endpoint_url, heights, tqdm_progress):
+async def fetch_all_blocks(endpoint_type, endpoint_url, heights):
+    results = []
     if endpoint_type == "tcp":
         async with aiohttp.ClientSession() as session:
             tasks = [fetch_block_info_aiohttp(session, endpoint_url, height) for height in heights]
-            results = []
-            for task in asyncio.as_completed(tasks):
+            for task in tqdm(asyncio.as_completed(tasks), total=len(tasks), desc="Fetching Blocks", unit="block", bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}} [Blocks: {{n}}/{{total}}, Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate:.2f}} blocks/s]{bash_color_reset}"):
                 result = await task
                 results.append(result)
-                tqdm_progress.update(1)
-            return results
     else:
         with requests_unixsocket.Session() as session:
-            results = [fetch_block_info_socket(endpoint_url, height) for height in heights]
-            return results
+            tasks = [fetch_block_info_socket(endpoint_url, height) for height in heights]
+            for task in tqdm(tasks, total=len(tasks), desc="Fetching Blocks", unit="block", bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}} [Blocks: {{n}}/{{total}}, Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate:.2f}} blocks/s]{bash_color_reset}"):
+                results.append(task)
+    return results
 
 # LOCKED
 def find_lowest_height(endpoint_type, endpoint_url):
@@ -204,8 +204,8 @@ def signal_handler(sig, frame):
     logging.info(f"Signal {sig} received. Shutting down.")
     print(f"{bash_color_red}\nProcess interrupted. Exiting gracefully...{bash_color_reset}")
     shutdown_event.set()
-    loop = asyncio.get_event_loop()
-    loop.stop()
+    for task in asyncio.all_tasks():
+        task.cancel()
     sys.exit(0)
 
 # LOCKED
@@ -381,12 +381,16 @@ def default(obj):
 
 # Set up logging configuration globally
 log_file = None
+start_time = datetime.now(timezone.utc)
+file_timestamp = start_time.strftime('%Y%m%d_%H%M%S')
+log_file = f"error_log_{file_timestamp}.log"
 
-def configure_logging(lower_height, upper_height, file_timestamp):
+logging.basicConfig(filename=log_file, level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.getLogger().handlers = [h for h in logging.getLogger().handlers if isinstance(h, logging.FileHandler)]
+
+def configure_logging():
     global log_file
-    log_file = f"error_log_{lower_height}_to_{upper_height}_{file_timestamp}.log"
-    logging.basicConfig(filename=log_file, level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
-    logging.getLogger().handlers = [h for h in logging.getLogger().handlers if isinstance(h, logging.FileHandler)]
+    logging.info("Logging configured globally.")
 
 def main():
     global shutdown_event, executor, json_file_path  # Add json_file_path as a global variable
@@ -414,7 +418,7 @@ def main():
     output_image_file_base = os.path.splitext(json_file_path)[0]
 
     # Configure logging
-    configure_logging(lower_height, upper_height, file_timestamp)
+    configure_logging()
 
     # Calculate optimal workers
     fetch_workers, json_workers = determine_optimal_workers()
