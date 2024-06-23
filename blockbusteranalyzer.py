@@ -458,8 +458,7 @@ def generate_graphs_and_table(block_data, output_image_file_base, lower_height, 
     generate_scatter_chart(times, sizes, colors, output_image_file_base, lower_height, upper_height)
     generate_enhanced_scatter_chart(times, sizes, colors, output_image_file_base, lower_height, upper_height)
 
-    # Generate remaining charts
-    generate_heatmap_with_additional_dimensions(times, sizes, output_image_file_base)
+    # Generate segmented bar chart
     generate_segmented_bar_chart(times, sizes, output_image_file_base)
 
 # LOCKED
@@ -525,11 +524,11 @@ async def main():
 
             # Convert sizes to float and times to datetime
             block_data = [
-                {
+                json_structure({
                     "height": block["height"],
                     "size": float(block["size"]),
                     "time": parse_timestamp(block["time"])
-                }
+                })
                 for block in data
             ]
 
