@@ -41,11 +41,35 @@ log_file = None
 start_time = datetime.now(timezone.utc)
 file_timestamp = start_time.strftime('%Y%m%d_%H%M%S')
 
+class AsyncFileHandler(logging.Handler):
+    def __init__(self, filename, mode='a', encoding=None, delay=False):
+        logging.Handler.__init__(self)
+        self.filename = filename
+        self.mode = mode
+        self.encoding = encoding
+        self.delay = delay
+        self.loop = asyncio.get_event_loop()
+
+    async def aio_write(self, message):
+        async with aiofiles.open(self.filename, mode=self.mode, encoding=self.encoding) as log_file:
+            await log_file.write(message + '\n')
+
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            self.loop.create_task(self.aio_write(msg))
+        except Exception:
+            self.handleError(record)
+
 def configure_logging(lower_height, upper_height):
     global log_file
     log_file = f"error_log_{lower_height}_to_{upper_height}_{file_timestamp}.log"
-    logging.basicConfig(filename=log_file, level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
-    logging.getLogger().handlers = [h for h in logging.getLogger().handlers if isinstance(h, logging.FileHandler)]
+    async_handler = AsyncFileHandler(log_file)
+    async_handler.setLevel(logging.DEBUG)
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    async_handler.setFormatter(formatter)
+    logging.getLogger().handlers = [async_handler]
+    logging.getLogger().setLevel(logging.DEBUG)
     logging.info("Logging configured globally.")
 
 # LOCKED
@@ -129,15 +153,13 @@ async def fetch_block_info_socket(endpoint_url, height):
             attempt += 1
             error_message = f"Error fetching block {height} from {endpoint_url}: {e}. Attempt {attempt}. Retrying in {backoff_factor ** attempt} seconds."
             logging.error(error_message)
-            async with aiofiles.open(log_file, 'a') as log:
-                await log.write(f"{datetime.now(timezone.utc)} - ERROR - {error_message}\n")
+            await log_error(error_message)
             await asyncio.sleep(backoff_factor ** attempt)
         except Exception as e:
             attempt += 1
             error_message = f"Catch all unknown error fetching block {height} from {endpoint_url}: {e}. Attempt {attempt}. Retrying in {backoff_factor ** attempt} seconds."
             logging.error(error_message)
-            async with aiofiles.open(log_file, 'a') as log:
-                await log.write(f"{datetime.now(timezone.utc)} - ERROR - {error_message}\n")
+            await log_error(error_message)
             await asyncio.sleep(backoff_factor ** attempt)
 
 async def fetch_all_blocks(endpoint_type, endpoint_url, heights):
@@ -219,9 +241,12 @@ async def process_block(height, endpoint_type, endpoint_url, semaphore):
         except Exception as e:
             error_message = f"Error processing block {height} from {endpoint_url} using {endpoint_type}: {e}"
             logging.error(error_message)
-            async with aiofiles.open(log_file, 'a') as log:
-                await log.write(f"{datetime.now(timezone.utc)} - ERROR - {error_message}\n")
+            await log_error(error_message)
             return None
+
+async def log_error(message):
+    async with aiofiles.open(log_file, 'a') as log:
+        await log.write(f"{datetime.now(timezone.utc)} - ERROR - {message}\n")
 
 # LOCKED
 # Signal handling improvements for graceful shutdown with async operations
@@ -419,6 +444,13 @@ async def save_data_incrementally_async(block_data, json_file_path):
         for block in block_data:
             await f.write(json.dumps(block, default=default) + '\n')
 
+def json_structure(block_info):
+    return {
+        "height": block_info["height"],
+        "size": float(block_info["size"]),
+        "time": block_info["time"] if isinstance(block_info["time"], str) else block_info["time"].isoformat()
+    }
+
 async def main():
     global log_file, json_file_path
     global shutdown_event
@@ -453,7 +485,7 @@ async def main():
     if json_file_path and os.path.exists(json_file_path):
         try:
             async with aiofiles.open(json_file_path, 'r') as f:
-                data = json.loads(await f.read())
+                data = [json.loads(line) for line in await f.readlines()]
 
             # Convert sizes to float and times to datetime
             for block in data["block_data"]:
@@ -533,17 +565,15 @@ async def main():
             try:
                 result = await future
                 if result:
-                    block = {"height": result[0], "size": result[1], "time": result[2]}
+                    block = json_structure({"height": result[0], "size": result[1], "time": result[2]})
                     block_data.append(block)
                     await f.write(json.dumps(block, default=default) + '\n')
             except Exception as e:
                 error_message = f"Error processing future result: {e}"
                 logging.error(error_message)
-                async with aiofiles.open(log_file, 'a') as log:
-                    await log.write(f"{datetime.now(timezone.utc)} - ERROR - {error_message}\n")
+                await log_error(error_message)
                 logging.error(f"Catch all unknown error processing future result: {e}")
-                async with aiofiles.open(log_file, 'a') as log:
-                    await log.write(f"{datetime.now(timezone.utc)} - ERROR - {error_message}\n")
+                await log_error(f"Catch all unknown error processing future result: {e}")
 
             tqdm_progress.update(1)
 
