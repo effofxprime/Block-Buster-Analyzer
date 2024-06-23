@@ -516,7 +516,7 @@ async def main():
         unit="block",
         bar_format=(
             f"{bash_color_light_blue}{{l_bar}}{{bar}} [Blocks: {{n}}/{{total}}, "
-            f"Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate_fmt}} blocks/s]{bash_color_reset}"
+            f"Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate_fmt}}]{bash_color_reset}"
         )
     )
     async with aiofiles.open(json_file_path, 'w') as f:
