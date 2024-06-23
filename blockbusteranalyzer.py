@@ -164,17 +164,53 @@ async def fetch_block_info_socket(endpoint_url, height):
 
 async def fetch_all_blocks(endpoint_type, endpoint_url, heights):
     results = []
+    failed_heights = []
+
     if endpoint_type == "tcp":
         async with aiohttp.ClientSession() as session:
             tasks = [fetch_block_info_aiohttp(session, endpoint_url, height) for height in heights]
             for task in tqdm_async(asyncio.as_completed(tasks), total=len(tasks), desc="Fetching Blocks", unit="block", bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}} [Blocks: {{n}}/{{total}}, Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate_fmt}} blocks/s]{bash_color_reset}"):
                 result = await task
-                results.append(result)
+                if result:
+                    results.append(result)
+                else:
+                    failed_heights.append(height)
     else:
         tasks = [fetch_block_info_socket(endpoint_url, height) for height in heights]
         for task in tqdm_async(tasks, total=len(tasks), desc="Fetching Blocks", unit="block", bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}} [Blocks: {{n}}/{{total}}, Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate_fmt}} blocks/s]{bash_color_reset}"):
-            results.append(task)
+            result = await task
+            if result:
+                results.append(result)
+            else:
+                failed_heights.append(height)
+
+    # Retry failed heights
+    retry_results = await retry_failed_blocks(endpoint_type, endpoint_url, failed_heights)
+    results.extend(retry_results)
     return results
+
+async def retry_failed_blocks(endpoint_type, endpoint_url, failed_heights):
+    results = []
+    if not failed_heights:
+        return results
+
+    logging.info(f"Retrying {len(failed_heights)} failed blocks...")
+
+    if endpoint_type == "tcp":
+        async with aiohttp.ClientSession() as session:
+            tasks = [fetch_block_info_aiohttp(session, endpoint_url, height) for height in failed_heights]
+            for task in tqdm_async(asyncio.as_completed(tasks), total=len(tasks), desc="Retrying Blocks", unit="block", bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}} [Blocks: {{n}}/{{total}}, Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate_fmt}} blocks/s]{bash_color_reset}"):
+                result = await task
+                if result:
+                    results.append(result)
+    else:
+        tasks = [fetch_block_info_socket(endpoint_url, height) for height in failed_heights]
+        for task in tqdm_async(tasks, total=len(tasks), desc="Retrying Blocks", unit="block", bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}} [Blocks: {{n}}/{{total}}, Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate_fmt}} blocks/s]{bash_color_reset}"):
+            result = await task
+            if result:
+                results.append(result)
+    return results
+
 
 # LOCKED
 def find_lowest_height(endpoint_type, endpoint_url):
@@ -442,7 +478,7 @@ def default(obj):
 async def save_data_incrementally_async(block_data, json_file_path):
     async with aiofiles.open(json_file_path, 'w') as f:
         for block in block_data:
-            await f.write(json.dumps(block, default=default) + '\n')
+            await f.write(json.dumps(json_structure(block), default=default) + '\n')
 
 def json_structure(block_info):
     return {
@@ -488,9 +524,14 @@ async def main():
                 data = [json.loads(line) for line in await f.readlines()]
 
             # Convert sizes to float and times to datetime
-            for block in data["block_data"]:
-                block["size"] = float(block["size"])
-                block["time"] = parse_timestamp(block["time"])
+            block_data = [
+                {
+                    "height": block["height"],
+                    "size": float(block["size"]),
+                    "time": parse_timestamp(block["time"])
+                }
+                for block in data
+            ]
 
             # Infer lower and upper height from JSON file name
             match = re.search(r"(\d+)_to_(\d+)", json_file_path)
@@ -498,7 +539,7 @@ async def main():
                 lower_height = int(match.group(1))
                 upper_height = int(match.group(2))
 
-            generate_graphs_and_table(data["block_data"], output_image_file_base, lower_height, upper_height)
+            generate_graphs_and_table(block_data, output_image_file_base, lower_height, upper_height)
         except Exception as e:
             logging.error(f"Error processing JSON file: {e}")
             logging.error(f"Catch all unknown error processing JSON file: {e}")
