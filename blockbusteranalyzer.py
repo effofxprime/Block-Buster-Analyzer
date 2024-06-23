@@ -146,12 +146,11 @@ async def fetch_block_info_aiohttp(session, endpoint_url, height):
 async def fetch_block_info_socket(endpoint_url, height):
     backoff_factor = 1.5
     attempt = 0
-    max_retries = 5  # Added max_retries for consistency
-    while attempt < max_retries:  # Added condition for retries
+    max_retries = 5
+    while attempt < max_retries:
         try:
             async with aiohttp.ClientSession() as session:
-                encoded_url = f"http+unix://{quote_plus(endpoint_url)}/block?height={height}"
-                async with session.get(encoded_url, timeout=3) as response:
+                async with session.get(f"http+unix://{quote_plus(endpoint_url)}/block?height={height}", timeout=3) as response:
                     response.raise_for_status()
                     return await response.json()
         except (aiohttp.ClientError, aiohttp.http_exceptions.HttpProcessingError, aiohttp.ClientPayloadError) as e:
@@ -189,24 +188,21 @@ async def fetch_all_blocks(endpoint_type, endpoint_url, heights):
             tasks = [fetch_block_info_aiohttp(session, endpoint_url, height) for height in heights]
             for task in tqdm_async(asyncio.as_completed(tasks), total=len(tasks)):
                 result = await task
-                height = heights[tasks.index(task)]  # Correct height reference
                 if result:
                     results.append(result)
                 else:
-                    failed_heights.append(height)
+                    failed_heights.append(heights[tasks.index(task)])
                 tqdm_progress.update(1)
     else:
         tasks = [fetch_block_info_socket(endpoint_url, height) for height in heights]
         for task in tqdm_async(asyncio.as_completed(tasks), total=len(tasks)):
             result = await task
-            height = heights[tasks.index(task)]  # Correct height reference
             if result:
                 results.append(result)
-                tqdm_progress.update(1)
             else:
-                failed_heights.append(height)
+                failed_heights.append(heights[tasks.index(task)])
+            tqdm_progress.update(1)
 
-    # Retry failed heights
     tqdm_progress.close()
     retry_results = await retry_failed_blocks(endpoint_type, endpoint_url, failed_heights)
     results.extend(retry_results)
@@ -552,11 +548,16 @@ async def main():
                 lower_height = int(match.group(1))
                 upper_height = int(match.group(2))
 
-            generate_graphs_and_table(block_data, output_image_file_base, lower_height, upper_height)
+            # Ensure block_data is not empty before generating graphs and table
+            if block_data:
+                generate_graphs_and_table(block_data, output_image_file_base, lower_height, upper_height)
+            else:
+                logging.error("No block data found in the supplied JSON file.")
         except Exception as e:
             logging.error(f"Error processing JSON file: {e}")
             logging.error(f"Catch all unknown error processing JSON file: {e}")
-        return
+    return
+
 
     # Check endpoint availability
     retries = 3
