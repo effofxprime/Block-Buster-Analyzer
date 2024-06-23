@@ -168,14 +168,17 @@ def get_progress_indicator(total, description):
                       position=0, leave=True)
 
 # Update progress indicator usage in fetch_all_blocks function
+# Ensure only one progress indicator is created and updated correctly
+
 async def fetch_all_blocks(endpoint_type, endpoint_url, heights):
     results = []
     failed_heights = []
 
+    tqdm_progress = get_progress_indicator(len(heights), "Fetching Blocks")
+
     if endpoint_type == "tcp":
         async with aiohttp.ClientSession() as session:
             tasks = [fetch_block_info_aiohttp(session, endpoint_url, height) for height in heights]
-            tqdm_progress = get_progress_indicator(len(tasks), "Fetching Blocks")
             for task in tqdm_async(asyncio.as_completed(tasks), total=len(tasks)):
                 result = await task
                 if result:
@@ -185,7 +188,6 @@ async def fetch_all_blocks(endpoint_type, endpoint_url, heights):
                 tqdm_progress.update(1)
     else:
         tasks = [fetch_block_info_socket(endpoint_url, height) for height in heights]
-        tqdm_progress = get_progress_indicator(len(tasks), "Fetching Blocks")
         for task in tqdm_async(asyncio.as_completed(tasks), total=len(tasks)):
             result = await task
             if result:
@@ -216,12 +218,11 @@ async def retry_failed_blocks(endpoint_type, endpoint_url, failed_heights):
                     results.append(result)
     else:
         tasks = [fetch_block_info_socket(endpoint_url, failed_height) for failed_height in failed_heights]
-        for task in tqdm_async(tasks, total=len(tasks), desc="Retrying Blocks", unit="block", bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}} [Blocks: {{n}}/{{total}}, Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate_fmt}}]{bash_color_reset}"):
+        for task in tqdm_async(asyncio.as_completed(tasks), total=len(tasks), desc="Retrying Blocks", unit="block", bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}} [Blocks: {{n}}/{{total}}, Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate_fmt}}]{bash_color_reset}"):
             result = await task
             if result:
                 results.append(result)
     return results
-
 
 # LOCKED
 def find_lowest_height(endpoint_type, endpoint_url):
@@ -308,7 +309,7 @@ async def shutdown():
     print(f"{total_tasks} async operations left to shutdown", end='\r')
     for task in asyncio.as_completed(tasks):
         try:
-            await asyncio.wait_for(task, timeout=10)
+            await asyncio.wait_for(task, timeout=1)
         except asyncio.TimeoutError:
             task.cancel()
             try:
@@ -318,6 +319,7 @@ async def shutdown():
         total_tasks -= 1
         print(f"{total_tasks} async operations left to shutdown", end='\r')
     print(f"{bash_color_green}\nAll async operations have been shut down.{bash_color_reset}")
+    sys.exit(0)  # Ensure immediate termination
 
 # LOCKED
 def signal_handler(sig, frame):
