@@ -146,7 +146,8 @@ async def fetch_block_info_aiohttp(session, endpoint_url, height):
 async def fetch_block_info_socket(endpoint_url, height):
     backoff_factor = 1.5
     attempt = 0
-    while True:
+    max_retries = 5  # Added max_retries for consistency
+    while attempt < max_retries:  # Added condition for retries
         try:
             async with aiohttp.ClientSession() as session:
                 encoded_url = f"http+unix://{quote_plus(endpoint_url)}/block?height={height}"
@@ -165,6 +166,8 @@ async def fetch_block_info_socket(endpoint_url, height):
             logging.error(error_message)
             await log_error(error_message)
             await asyncio.sleep(backoff_factor ** attempt)
+    logging.error(f"Max retries reached for block {height}. Skipping.")
+    return None
 
 # LOCKED
 def get_progress_indicator(total, description):
@@ -186,20 +189,22 @@ async def fetch_all_blocks(endpoint_type, endpoint_url, heights):
             tasks = [fetch_block_info_aiohttp(session, endpoint_url, height) for height in heights]
             for task in tqdm_async(asyncio.as_completed(tasks), total=len(tasks)):
                 result = await task
+                height = heights[tasks.index(task)]  # Correct height reference
                 if result:
                     results.append(result)
                 else:
-                    failed_heights.append(result["height"])
+                    failed_heights.append(height)
                 tqdm_progress.update(1)
     else:
         tasks = [fetch_block_info_socket(endpoint_url, height) for height in heights]
         for task in tqdm_async(asyncio.as_completed(tasks), total=len(tasks)):
             result = await task
+            height = heights[tasks.index(task)]  # Correct height reference
             if result:
                 results.append(result)
                 tqdm_progress.update(1)
             else:
-                failed_heights.append(result["height"])
+                failed_heights.append(height)
 
     # Retry failed heights
     tqdm_progress.close()
