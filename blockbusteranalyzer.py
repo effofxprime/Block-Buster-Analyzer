@@ -20,7 +20,7 @@ import signal
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from datetime import datetime, timedelta, timezone, date  # Added date import
+from datetime import datetime, timezone, date  # Added date import
 import matplotlib.dates as mdates
 from matplotlib.ticker import MaxNLocator
 import seaborn as sns
