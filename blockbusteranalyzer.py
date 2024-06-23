@@ -20,7 +20,7 @@ import signal
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from datetime import datetime, timezone, date  # Added date import
+from datetime import datetime, timezone, date
 import matplotlib.dates as mdates
 from matplotlib.ticker import MaxNLocator
 import seaborn as sns
@@ -183,6 +183,7 @@ async def fetch_all_blocks(endpoint_type, endpoint_url, heights):
 
     tqdm_progress = get_progress_indicator(len(heights), "Fetching Blocks")
 
+    logging.info("Starting block fetch process.")
     if endpoint_type == "tcp":
         async with aiohttp.ClientSession() as session:
             tasks = [fetch_block_info_aiohttp(session, endpoint_url, height) for height in heights]
@@ -204,8 +205,10 @@ async def fetch_all_blocks(endpoint_type, endpoint_url, heights):
             tqdm_progress.update(1)
 
     tqdm_progress.close()
+    logging.info("Completed initial block fetch process. Starting retry for failed blocks.")
     retry_results = await retry_failed_blocks(endpoint_type, endpoint_url, failed_heights)
     results.extend(retry_results)
+    logging.info("Completed retry for failed blocks.")
     return results
 
 # LOCKED
@@ -557,7 +560,6 @@ async def main():
             logging.error(f"Error processing JSON file: {e}")
             logging.error(f"Catch all unknown error processing JSON file: {e}")
         return
-
 
     # Check endpoint availability
     retries = 3
