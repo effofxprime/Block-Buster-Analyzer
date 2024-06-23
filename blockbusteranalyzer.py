@@ -18,7 +18,6 @@ import sys
 import json
 import signal
 import matplotlib.pyplot as plt
-import threading
 import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta, timezone, date  # Added date import
@@ -27,17 +26,15 @@ from matplotlib.ticker import MaxNLocator
 import seaborn as sns
 from tabulate import tabulate
 import re
-import time as tm
 import requests
 import requests_unixsocket
 from urllib.parse import quote_plus
-from tqdm.asyncio import tqdm
-from http.client import IncompleteRead
+from tqdm.asyncio import tqdm as tqdm_async
 import logging
-import psutil  # For system load monitoring
 import aiohttp
 import aiofiles
 import asyncio
+import time
 
 # Set up logging configuration globally
 log_file = None
@@ -129,26 +126,26 @@ def fetch_block_info_socket(endpoint_url, height):
             logging.error(error_message)
             with open(log_file, 'a') as log:
                 log.write(f"{datetime.now(timezone.utc)} - ERROR - {error_message}\n")
-            tm.sleep(backoff_factor ** attempt)
+            time.sleep(backoff_factor ** attempt)
         except Exception as e:
             attempt += 1
             error_message = f"Catch all unknown error fetching block {height} from {endpoint_url}: {e}. Attempt {attempt}. Retrying in {backoff_factor ** attempt} seconds."
             logging.error(error_message)
             with open(log_file, 'a') as log:
                 log.write(f"{datetime.now(timezone.utc)} - ERROR - {error_message}\n")
-            tm.sleep(backoff_factor ** attempt)
+            time.sleep(backoff_factor ** attempt)
 
 async def fetch_all_blocks(endpoint_type, endpoint_url, heights):
     results = []
     if endpoint_type == "tcp":
         async with aiohttp.ClientSession() as session:
             tasks = [fetch_block_info_aiohttp(session, endpoint_url, height) for height in heights]
-            for task in tqdm(asyncio.as_completed(tasks), total=len(tasks), desc="Fetching Blocks", unit="block", bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}} [Blocks: {{n}}/{{total}}, Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate:.2f}} blocks/s]{bash_color_reset}"):
+            for task in tqdm_async(asyncio.as_completed(tasks), total=len(tasks), desc="Fetching Blocks", unit="block", bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}} [Blocks: {{n}}/{{total}}, Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate:.2f}} blocks/s]{bash_color_reset}"):
                 result = await task
                 results.append(result)
     else:
         tasks = [fetch_block_info_socket(endpoint_url, height) for height in heights]
-        for task in tqdm(tasks, total=len(tasks), desc="Fetching Blocks", unit="block", bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}} [Blocks: {{n}}/{{total}}, Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate:.2f}} blocks/s]{bash_color_reset}"):
+        for task in tqdm_async(tasks, total=len(tasks), desc="Fetching Blocks", unit="block", bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}} [Blocks: {{n}}/{{total}}, Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate:.2f}} blocks/s]{bash_color_reset}"):
             results.append(task)
     return results
 
@@ -490,13 +487,13 @@ async def main():
     logging.info("Fetching block information. This may take a while for large ranges. Please wait.")
     print(f"{bash_color_light_blue}\nFetching block information. This may take a while for large ranges. Please wait...{bash_color_reset}")
 
-    start_script_time = tm.time()
+    start_script_time = time.time()
     total_blocks = upper_height - lower_height + 1
 
     print(f"{bash_color_dark_grey}\n{'='*40}\n{bash_color_reset}")
 
     heights = range(lower_height, upper_height + 1)
-    tqdm_progress = tqdm(
+    tqdm_progress = tqdm_async(
         total=len(heights), 
         desc="Fetching Blocks", 
         unit="block", 
@@ -507,7 +504,7 @@ async def main():
     )
     async with aiofiles.open(json_file_path, 'w') as f:
         tasks = [process_block(height, connection_type, endpoint_url) for height in heights]
-        for future in asyncio.as_completed(tasks):
+        for future in tqdm_async(asyncio.as_completed(tasks), total=len(tasks)):
             if shutdown_event.is_set():
                 logging.info("Shutdown event detected. Exiting.")
                 print(f"{bash_color_red}Shutdown event detected. Exiting...{bash_color_reset}")
