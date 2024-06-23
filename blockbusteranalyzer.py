@@ -197,40 +197,33 @@ def parse_timestamp(timestamp):
         raise ValueError(f"time data '{timestamp}' does not match any known format")
 
 # LOCKED
-async def process_block(height, endpoint_type, endpoint_url):
-    if shutdown_event.is_set():
-        return None
-    try:
-        if endpoint_type == "tcp":
-            async with aiohttp.ClientSession() as session:
-                block_info = await fetch_block_info_aiohttp(session, endpoint_url, height)
-        else:
-            block_info = await fetch_block_info_socket(endpoint_url, height)
-        if block_info is None:
-            return None
+async def process_block(height, endpoint_type, endpoint_url, semaphore):
+    async with semaphore:
+        try:
+            if endpoint_type == "tcp":
+                async with aiohttp.ClientSession() as session:
+                    block_info = await fetch_block_info_aiohttp(session, endpoint_url, height)
+            else:
+                block_info = await fetch_block_info_socket(endpoint_url, height)
+            if block_info is None:
+                return None
 
-        block_size = len(json.dumps(block_info))
-        block_size_mb = block_size / 1048576
-        block_time = parse_timestamp(block_info['result']['block']['header']['time'])
-        return (height, block_size_mb, block_time)
-    except Exception as e:
-        error_message = f"Error processing block {height} from {endpoint_url} using {endpoint_type}: {e}"
-        logging.error(error_message)
-        async with aiofiles.open(log_file, 'a') as log:
-            await log.write(f"{datetime.now(timezone.utc)} - ERROR - {error_message}\n")
-        logging.error(f"Catch all unknown error processing block {height} from {endpoint_url} using {endpoint_type}: {e}")
-        async with aiofiles.open(log_file, 'a') as log:
-            await log.write(f"{datetime.now(timezone.utc)} - ERROR - {error_message}\n")
-        return None
+            block_size = len(json.dumps(block_info))
+            block_size_mb = block_size / 1048576
+            block_time = parse_timestamp(block_info['result']['block']['header']['time'])
+            return (height, block_size_mb, block_time)
+        except Exception as e:
+            error_message = f"Error processing block {height} from {endpoint_url} using {endpoint_type}: {e}"
+            logging.error(error_message)
+            async with aiofiles.open(log_file, 'a') as log:
+                await log.write(f"{datetime.now(timezone.utc)} - ERROR - {error_message}\n")
+            return None
 
 # LOCKED
 def signal_handler(sig, frame):
     logging.info(f"Signal {sig} received. Shutting down.")
     print(f"{bash_color_red}\nProcess interrupted. Exiting gracefully...{bash_color_reset}")
     shutdown_event.set()
-    for task in asyncio.all_tasks():
-        task.cancel()
-    sys.exit(0)
 
 # LOCKED
 def categorize_block(block, categories):
@@ -404,11 +397,12 @@ async def save_data_incrementally_async(block_data, json_file_path):
             await f.write(json.dumps(block, default=default) + '\n')
 
 async def main():
-    global shutdown_event, log_file, json_file_path  # Add log_file and json_file_path as global variables
-    shutdown_event = threading.Event()
+    global log_file, json_file_path
+    shutdown_event = asyncio.Event()
 
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
+    loop = asyncio.get_event_loop()
+    loop.add_signal_handler(signal.SIGINT, signal_handler, signal.SIGINT, None)
+    loop.add_signal_handler(signal.SIGTERM, signal_handler, signal.SIGTERM, None)
     logging.info("Signal handlers configured.")
 
     if len(sys.argv) < 5 or len(sys.argv) > 6:
@@ -493,6 +487,8 @@ async def main():
 
     print(f"{bash_color_dark_grey}\n{'='*40}\n{bash_color_reset}")
 
+    semaphore = asyncio.Semaphore(10)  # Adjust this number based on your concurrency requirements
+
     heights = range(lower_height, upper_height + 1)
     tqdm_progress = tqdm_async(
         total=len(heights), 
@@ -504,7 +500,7 @@ async def main():
         )
     )
     async with aiofiles.open(json_file_path, 'w') as f:
-        tasks = [process_block(height, connection_type, endpoint_url) for height in heights]
+        tasks = [process_block(height, connection_type, endpoint_url, semaphore) for height in heights]
         for future in tqdm_async(asyncio.as_completed(tasks), total=len(tasks)):
             if shutdown_event.is_set():
                 logging.info("Shutdown event detected. Exiting.")
