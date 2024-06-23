@@ -25,7 +25,6 @@ from datetime import datetime, timedelta, timezone, date  # Added date import
 import matplotlib.dates as mdates
 from matplotlib.ticker import MaxNLocator
 import seaborn as sns
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from tabulate import tabulate
 import re
 import time as tm
@@ -37,6 +36,7 @@ from http.client import IncompleteRead
 import logging
 import psutil  # For system load monitoring
 import aiohttp
+import aiofiles
 import asyncio
 
 # Set up logging configuration globally
@@ -147,10 +147,9 @@ async def fetch_all_blocks(endpoint_type, endpoint_url, heights):
                 result = await task
                 results.append(result)
     else:
-        with requests_unixsocket.Session() as session:
-            tasks = [fetch_block_info_socket(endpoint_url, height) for height in heights]
-            for task in tqdm(tasks, total=len(tasks), desc="Fetching Blocks", unit="block", bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}} [Blocks: {{n}}/{{total}}, Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate:.2f}} blocks/s]{bash_color_reset}"):
-                results.append(task)
+        tasks = [fetch_block_info_socket(endpoint_url, height) for height in heights]
+        for task in tqdm(tasks, total=len(tasks), desc="Fetching Blocks", unit="block", bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}} [Blocks: {{n}}/{{total}}, Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate:.2f}} blocks/s]{bash_color_reset}"):
+            results.append(task)
     return results
 
 # LOCKED
@@ -219,11 +218,11 @@ async def process_block(height, endpoint_type, endpoint_url):
     except Exception as e:
         error_message = f"Error processing block {height} from {endpoint_url} using {endpoint_type}: {e}"
         logging.error(error_message)
-        with open(log_file, 'a') as log:
-            log.write(f"{datetime.now(timezone.utc)} - ERROR - {error_message}\n")
+        async with aiofiles.open(log_file, 'a') as log:
+            await log.write(f"{datetime.now(timezone.utc)} - ERROR - {error_message}\n")
         logging.error(f"Catch all unknown error processing block {height} from {endpoint_url} using {endpoint_type}: {e}")
-        with open(log_file, 'a') as log:
-            log.write(f"{datetime.now(timezone.utc)} - ERROR - {error_message}\n")
+        async with aiofiles.open(log_file, 'a') as log:
+            await log.write(f"{datetime.now(timezone.utc)} - ERROR - {error_message}\n")
         return None
 
 # LOCKED
@@ -389,14 +388,6 @@ def generate_graphs_and_table(block_data, output_image_file_base, lower_height, 
     generate_segmented_bar_chart(times, sizes, output_image_file_base)
 
 # LOCKED
-def determine_optimal_workers():
-    cpu_count = os.cpu_count()
-    system_load = psutil.getloadavg()[0]  # 1 minute system load average
-    optimal_fetch_workers = max(1, min(cpu_count * 10, int(cpu_count / (system_load + 0.5))))
-    optimal_json_workers = cpu_count  # Assuming reading JSON is less intensive
-    return optimal_fetch_workers, optimal_json_workers
-
-# LOCKED
 def save_data_incrementally(block_data, json_file_path):
     with open(json_file_path, 'w') as f:
         for block in block_data:
@@ -409,8 +400,13 @@ def default(obj):
         return obj.isoformat()
     raise TypeError("Type not serializable")
 
+async def save_data_incrementally_async(block_data, json_file_path):
+    async with aiofiles.open(json_file_path, 'w') as f:
+        for block in block_data:
+            await f.write(json.dumps(block, default=default) + '\n')
+
 async def main():
-    global shutdown_event, executor, log_file, json_file_path  # Add log_file and json_file_path as global variables
+    global shutdown_event, log_file, json_file_path  # Add log_file and json_file_path as global variables
     shutdown_event = threading.Event()
 
     signal.signal(signal.SIGINT, signal_handler)
@@ -437,15 +433,13 @@ async def main():
     # Configure logging
     configure_logging(lower_height, upper_height)
 
-    # Calculate optimal workers
-    fetch_workers, json_workers = determine_optimal_workers()
     print(f"{bash_color_light_blue}Optimal fetch workers: {fetch_workers}, Optimal JSON workers: {json_workers}{bash_color_reset}")
 
     # If a JSON file is specified, skip fetching and directly process the JSON file
     if json_file_path and os.path.exists(json_file_path):
         try:
-            with open(json_file_path) as f:
-                data = json.load(f)
+            async with aiofiles.open(json_file_path, 'r') as f:
+                data = json.loads(await f.read())
 
             # Convert sizes to float and times to datetime
             for block in data["block_data"]:
@@ -471,7 +465,7 @@ async def main():
             break
         else:
             logging.warning(f"RPC endpoint unreachable. Retrying {attempt + 1}/{retries}...")
-            tm.sleep(5)
+            await asyncio.sleep(5)
     else:
         logging.error("RPC endpoint unreachable after multiple attempts. Exiting.")
         print(f"{bash_color_red}RPC endpoint unreachable after multiple attempts. Exiting.{bash_color_reset}")
@@ -494,50 +488,48 @@ async def main():
         sys.exit(1)
 
     json_file_path = f"{output_image_file_base}.json"
-    with ThreadPoolExecutor(max_workers=fetch_workers) as executor:
-        block_data = []
-        logging.info("Fetching block information. This may take a while for large ranges. Please wait.")
-        print(f"{bash_color_light_blue}\nFetching block information. This may take a while for large ranges. Please wait...{bash_color_reset}")
+    block_data = []
+    logging.info("Fetching block information. This may take a while for large ranges. Please wait.")
+    print(f"{bash_color_light_blue}\nFetching block information. This may take a while for large ranges. Please wait...{bash_color_reset}")
 
-        start_script_time = tm.time()
-        total_blocks = upper_height - lower_height + 1
+    start_script_time = tm.time()
+    total_blocks = upper_height - lower_height + 1
 
-        print(f"{bash_color_dark_grey}\n{'='*40}\n{bash_color_reset}")
+    print(f"{bash_color_dark_grey}\n{'='*40}\n{bash_color_reset}")
 
-        heights = range(lower_height, upper_height + 1)
-        futures = [executor.submit(process_block, height, connection_type, endpoint_url) for height in heights]
-
-        tqdm_progress = tqdm(
-            total=len(futures), 
-            desc="Fetching Blocks", 
-            unit="block", 
-            bar_format=(
-                f"{bash_color_light_blue}{{l_bar}}{{bar}} [Blocks: {{n}}/{{total}}, "
-                f"Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate:.2f}} blocks/s]{bash_color_reset}"
-            )
+    heights = range(lower_height, upper_height + 1)
+    tqdm_progress = tqdm(
+        total=len(heights), 
+        desc="Fetching Blocks", 
+        unit="block", 
+        bar_format=(
+            f"{bash_color_light_blue}{{l_bar}}{{bar}} [Blocks: {{n}}/{{total}}, "
+            f"Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate:.2f}} blocks/s]{bash_color_reset}"
         )
-        with open(json_file_path, 'w') as f:
-            for future in as_completed(futures):
-                if shutdown_event.is_set():
-                    logging.info("Shutdown event detected. Exiting.")
-                    print(f"{bash_color_red}Shutdown event detected. Exiting...{bash_color_reset}")
-                    break
-                try:
-                    result = future.result()
-                    if result:
-                        block = {"height": result[0], "size": result[1], "time": result[2]}
-                        block_data.append(block)
-                        f.write(json.dumps(block, default=default) + '\n')
-                except Exception as e:
-                    error_message = f"Error processing future result: {e}"
-                    logging.error(error_message)
-                    with open(log_file, 'a') as log:
-                        log.write(f"{datetime.now(timezone.utc)} - ERROR - {error_message}\n")
-                    logging.error(f"Catch all unknown error processing future result: {e}")
-                    with open(log_file, 'a') as log:
-                        log.write(f"{datetime.now(timezone.utc)} - ERROR - {error_message}\n")
+    )
+    async with aiofiles.open(json_file_path, 'w') as f:
+        tasks = [process_block(height, connection_type, endpoint_url) for height in heights]
+        for future in asyncio.as_completed(tasks):
+            if shutdown_event.is_set():
+                logging.info("Shutdown event detected. Exiting.")
+                print(f"{bash_color_red}Shutdown event detected. Exiting...{bash_color_reset}")
+                break
+            try:
+                result = await future
+                if result:
+                    block = {"height": result[0], "size": result[1], "time": result[2]}
+                    block_data.append(block)
+                    await f.write(json.dumps(block, default=default) + '\n')
+            except Exception as e:
+                error_message = f"Error processing future result: {e}"
+                logging.error(error_message)
+                async with aiofiles.open(log_file, 'a') as log:
+                    await log.write(f"{datetime.now(timezone.utc)} - ERROR - {error_message}\n")
+                logging.error(f"Catch all unknown error processing future result: {e}")
+                async with aiofiles.open(log_file, 'a') as log:
+                    await log.write(f"{datetime.now(timezone.utc)} - ERROR - {error_message}\n")
 
-                tqdm_progress.update(1)
+            tqdm_progress.update(1)
 
     tqdm_progress.close()  # Ensure the progress bar is closed properly
     print("\n")
@@ -553,7 +545,7 @@ async def main():
     print(f"{bash_color_light_green}\nFetching completed in {actual_time}. Saving data...{bash_color_reset}")
 
     # Save data incrementally
-    save_data_incrementally(block_data, json_file_path)
+    await save_data_incrementally_async(block_data, json_file_path)
 
     # Generate graphs and table
     generate_graphs_and_table(block_data, output_image_file_base, lower_height, upper_height)
