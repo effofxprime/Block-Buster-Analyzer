@@ -220,9 +220,22 @@ async def process_block(height, endpoint_type, endpoint_url, semaphore):
             return None
 
 # LOCKED
-def signal_handler(sig, frame):
-    logging.info(f"Signal {sig} received. Shutting down.")
+# Signal handling improvements for graceful shutdown with async operations
+async def shutdown():
+    tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
     print(f"{bash_color_red}\nProcess interrupted. Exiting gracefully...{bash_color_reset}")
+    print(f"{len(tasks)} async operations left to shutdown")
+    for task in asyncio.as_completed(tasks):
+        task_name = str(task).split()[0]
+        print(f"Waiting for {task_name} to finish...")
+        await asyncio.wait_for(task, timeout=60)
+        print(f"{task_name} finished.")
+        print(f"{len(tasks) - 1} async operations left to shutdown")
+        tasks.remove(task)
+    loop.stop()
+
+def signal_handler(sig, frame):
+    asyncio.create_task(shutdown())
     shutdown_event.set()
 
 # LOCKED
