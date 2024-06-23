@@ -141,12 +141,12 @@ async def fetch_all_blocks(endpoint_type, endpoint_url, heights):
     if endpoint_type == "tcp":
         async with aiohttp.ClientSession() as session:
             tasks = [fetch_block_info_aiohttp(session, endpoint_url, height) for height in heights]
-            for task in tqdm_async(asyncio.as_completed(tasks), total=len(tasks), desc="Fetching Blocks", unit="block", bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}} [Blocks: {{n}}/{{total}}, Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate:.2f}} blocks/s]{bash_color_reset}"):
+            for task in tqdm_async(asyncio.as_completed(tasks), total=len(tasks), desc="Fetching Blocks", unit="block", bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}} [Blocks: {{n}}/{{total}}, Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate_fmt}} blocks/s]{bash_color_reset}"):
                 result = await task
                 results.append(result)
     else:
         tasks = [fetch_block_info_socket(endpoint_url, height) for height in heights]
-        for task in tqdm_async(tasks, total=len(tasks), desc="Fetching Blocks", unit="block", bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}} [Blocks: {{n}}/{{total}}, Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate:.2f}} blocks/s]{bash_color_reset}"):
+        for task in tqdm_async(tasks, total=len(tasks), desc="Fetching Blocks", unit="block", bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}} [Blocks: {{n}}/{{total}}, Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate_fmt}} blocks/s]{bash_color_reset}"):
             results.append(task)
     return results
 
@@ -494,7 +494,6 @@ async def main():
     print(f"{bash_color_dark_grey}\n{'='*40}\n{bash_color_reset}")
 
     heights = range(lower_height, upper_height + 1)
-    # Correcting the bar_format string
     tqdm_progress = tqdm_async(
         total=len(heights), 
         desc="Fetching Blocks", 
@@ -504,7 +503,6 @@ async def main():
             f"Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate_fmt}} blocks/s]{bash_color_reset}"
         )
     )
-
     async with aiofiles.open(json_file_path, 'w') as f:
         tasks = [process_block(height, connection_type, endpoint_url) for height in heights]
         for future in tqdm_async(asyncio.as_completed(tasks), total=len(tasks)):
