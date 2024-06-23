@@ -192,7 +192,7 @@ async def fetch_all_blocks(endpoint_type, endpoint_url, heights):
                 results.append(result)
                 tqdm_progress.update(1)
             else:
-                failed_heights.append(height)
+                failed_heights.append(result["height"])
 
     # Retry failed heights
     tqdm_progress.close()
