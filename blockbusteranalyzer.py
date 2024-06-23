@@ -433,8 +433,6 @@ async def main():
     # Configure logging
     configure_logging(lower_height, upper_height)
 
-    print(f"{bash_color_light_blue}Optimal fetch workers: {fetch_workers}, Optimal JSON workers: {json_workers}{bash_color_reset}")
-
     # If a JSON file is specified, skip fetching and directly process the JSON file
     if json_file_path and os.path.exists(json_file_path):
         try:
