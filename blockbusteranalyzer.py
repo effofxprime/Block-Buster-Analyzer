@@ -221,10 +221,7 @@ async def process_block(height, endpoint_type, endpoint_url):
         logging.error(error_message)
         with open(log_file, 'a') as log:
             log.write(f"{datetime.now(timezone.utc)} - ERROR - {error_message}\n")
-        return None
-    except Exception as e:
-        error_message = f"Catch all unknown error processing block {height} from {endpoint_url} using {endpoint_type}: {e}"
-        logging.error(error_message)
+        logging.error(f"Catch all unknown error processing block {height} from {endpoint_url} using {endpoint_type}: {e}")
         with open(log_file, 'a') as log:
             log.write(f"{datetime.now(timezone.utc)} - ERROR - {error_message}\n")
         return None
