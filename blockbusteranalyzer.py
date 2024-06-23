@@ -169,7 +169,7 @@ async def fetch_all_blocks(endpoint_type, endpoint_url, heights):
     if endpoint_type == "tcp":
         async with aiohttp.ClientSession() as session:
             tasks = [fetch_block_info_aiohttp(session, endpoint_url, height) for height in heights]
-            for task in tqdm_async(asyncio.as_completed(tasks), total=len(tasks), desc="Fetching Blocks", unit="block", bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}} [Blocks: {{n}}/{{total}}, Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate_fmt}} blocks/s]{bash_color_reset}"):
+            for task in tqdm_async(asyncio.as_completed(tasks), total=len(tasks), desc="Fetching Blocks", unit="block", bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}} [Blocks: {{n}}/{{total}}, Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate_fmt}}]{bash_color_reset}", position=0, leave=True):
                 result = await task
                 if result:
                     results.append(result)
@@ -177,7 +177,7 @@ async def fetch_all_blocks(endpoint_type, endpoint_url, heights):
                     failed_heights.append(height)
     else:
         tasks = [fetch_block_info_socket(endpoint_url, height) for height in heights]
-        for task in tqdm_async(tasks, total=len(tasks), desc="Fetching Blocks", unit="block", bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}} [Blocks: {{n}}/{{total}}, Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate_fmt}} blocks/s]{bash_color_reset}"):
+        for task in tqdm_async(tasks, total=len(tasks), desc="Fetching Blocks", unit="block", bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}} [Blocks: {{n}}/{{total}}, Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate_fmt}}]{bash_color_reset}", position=0, leave=True):
             result = await task
             if result:
                 results.append(result)
@@ -199,13 +199,13 @@ async def retry_failed_blocks(endpoint_type, endpoint_url, failed_heights):
     if endpoint_type == "tcp":
         async with aiohttp.ClientSession() as session:
             tasks = [fetch_block_info_aiohttp(session, endpoint_url, height) for height in failed_heights]
-            for task in tqdm_async(asyncio.as_completed(tasks), total=len(tasks), desc="Retrying Blocks", unit="block", bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}} [Blocks: {{n}}/{{total}}, Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate_fmt}} blocks/s]{bash_color_reset}"):
+            for task in tqdm_async(asyncio.as_completed(tasks), total=len(tasks), desc="Retrying Blocks", unit="block", bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}} [Blocks: {{n}}/{{total}}, Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate_fmt}}]{bash_color_reset}"):
                 result = await task
                 if result:
                     results.append(result)
     else:
         tasks = [fetch_block_info_socket(endpoint_url, height) for height in failed_heights]
-        for task in tqdm_async(tasks, total=len(tasks), desc="Retrying Blocks", unit="block", bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}} [Blocks: {{n}}/{{total}}, Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate_fmt}} blocks/s]{bash_color_reset}"):
+        for task in tqdm_async(tasks, total=len(tasks), desc="Retrying Blocks", unit="block", bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}} [Blocks: {{n}}/{{total}}, Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate_fmt}}]{bash_color_reset}"):
             result = await task
             if result:
                 results.append(result)
@@ -273,7 +273,11 @@ async def process_block(height, endpoint_type, endpoint_url, semaphore):
             block_size = len(json.dumps(block_info))
             block_size_mb = block_size / 1048576
             block_time = parse_timestamp(block_info['result']['block']['header']['time'])
-            return (height, block_size_mb, block_time)
+            return {
+                "height": height,
+                "size": block_size_mb,
+                "time": block_time
+            }
         except Exception as e:
             error_message = f"Error processing block {height} from {endpoint_url} using {endpoint_type}: {e}"
             logging.error(error_message)
@@ -381,24 +385,6 @@ def generate_enhanced_scatter_chart(times, sizes, colors, output_image_file_base
     plt.tight_layout()
     plt.savefig(f"{output_image_file_base}_enhanced_scatter_chart.png")
     print(f"{bash_color_light_green}Enhanced scatter chart generated successfully.{bash_color_reset}")
-
-def generate_heatmap_with_additional_dimensions(times, sizes, output_image_file_base):
-    print(f"{bash_color_light_blue}Generating heatmap with additional dimensions...{bash_color_reset}")
-    data = pd.DataFrame({'times': pd.to_datetime(times), 'sizes': sizes})
-    data["hour"] = data["times"].dt.hour
-    data["day_of_week"] = data["times"].dt.dayofweek
-    data["day_of_week_name"] = data["times"].dt.day_name()
-    heatmap_data = pd.pivot_table(data, values="sizes", index="hour", columns="day_of_week_name", aggfunc=np.mean)
-    plt.figure(figsize=(38, 20))
-    sns.heatmap(heatmap_data, cmap="YlGnBu", annot=True, fmt=".2f", annot_kws={"size": 32})  # Increased font size for annotations
-    plt.title('Heatmap of Block Sizes by Hour and Day of Week', fontsize=32)
-    plt.xlabel('Day of Week', fontsize=32)
-    plt.ylabel('Hour of Day', fontsize=32)
-    plt.xticks(ticks=[0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5], labels=['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'], fontsize=32)
-    plt.yticks(fontsize=32)
-    plt.tight_layout()
-    plt.savefig(f"{output_image_file_base}_heatmap_with_dimensions.png")
-    print(f"{bash_color_light_green}Heatmap with additional dimensions generated successfully.{bash_color_reset}")
 
 def generate_segmented_bar_chart(times, sizes, output_image_file_base):
     print(f"{bash_color_light_blue}Generating segmented bar chart...{bash_color_reset}")
@@ -586,15 +572,7 @@ async def main():
     semaphore = asyncio.Semaphore(50)  # Increased for higher concurrency
 
     heights = range(lower_height, upper_height + 1)
-    tqdm_progress = tqdm_async(
-        total=len(heights),
-        desc="Fetching Blocks",
-        unit="block",
-        bar_format=(
-            f"{bash_color_light_blue}{{l_bar}}{{bar}} [Blocks: {{n}}/{{total}}, "
-            f"Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate_fmt}}]{bash_color_reset}"
-        )
-    )
+    tqdm_progress = get_progress_indicator(len(heights), "Fetching Blocks")
     async with aiofiles.open(json_file_path, 'w') as f:
         tasks = [process_block(height, connection_type, endpoint_url, semaphore) for height in heights]
         for future in tqdm_async(asyncio.as_completed(tasks), total=len(tasks)):
@@ -605,7 +583,7 @@ async def main():
             try:
                 result = await future
                 if result:
-                    block = json_structure({"height": result[0], "size": result[1], "time": result[2]})
+                    block = json_structure({"height": result["height"], "size": result["size"], "time": result["time"]})
                     block_data.append(block)
                     await f.write(json.dumps(block, default=default) + '\n')
             except Exception as e:
