@@ -162,6 +162,12 @@ async def fetch_block_info_socket(endpoint_url, height):
             await log_error(error_message)
             await asyncio.sleep(backoff_factor ** attempt)
 
+def get_progress_indicator(total, description):
+    return tqdm_async(total=total, desc=description, unit="block",
+                      bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}} [Blocks: {{n}}/{{total}}, Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate_fmt}}]{bash_color_reset}",
+                      position=0, leave=True)
+
+# Update progress indicator usage in fetch_all_blocks function
 async def fetch_all_blocks(endpoint_type, endpoint_url, heights):
     results = []
     failed_heights = []
@@ -169,22 +175,27 @@ async def fetch_all_blocks(endpoint_type, endpoint_url, heights):
     if endpoint_type == "tcp":
         async with aiohttp.ClientSession() as session:
             tasks = [fetch_block_info_aiohttp(session, endpoint_url, height) for height in heights]
-            for task in tqdm_async(asyncio.as_completed(tasks), total=len(tasks), desc="Fetching Blocks", unit="block", bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}} [Blocks: {{n}}/{{total}}, Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate_fmt}}]{bash_color_reset}", position=0, leave=True):
+            tqdm_progress = get_progress_indicator(len(tasks), "Fetching Blocks")
+            for task in tqdm_async(asyncio.as_completed(tasks), total=len(tasks)):
                 result = await task
                 if result:
                     results.append(result)
                 else:
                     failed_heights.append(height)
+                tqdm_progress.update(1)
     else:
         tasks = [fetch_block_info_socket(endpoint_url, height) for height in heights]
-        for task in tqdm_async(tasks, total=len(tasks), desc="Fetching Blocks", unit="block", bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}} [Blocks: {{n}}/{{total}}, Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate_fmt}}]{bash_color_reset}", position=0, leave=True):
+        tqdm_progress = get_progress_indicator(len(tasks), "Fetching Blocks")
+        for task in tqdm_async(asyncio.as_completed(tasks), total=len(tasks)):
             result = await task
             if result:
                 results.append(result)
+                tqdm_progress.update(1)
             else:
                 failed_heights.append(height)
 
     # Retry failed heights
+    tqdm_progress.close()
     retry_results = await retry_failed_blocks(endpoint_type, endpoint_url, failed_heights)
     results.extend(retry_results)
     return results
