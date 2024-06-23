@@ -239,6 +239,7 @@ async def shutdown():
         print(f"{total_tasks} async operations left to shutdown", end='\r')
     print(f"{bash_color_green}\nAll async operations have been shut down.{bash_color_reset}")
 
+# LOCKED
 def signal_handler(sig, frame):
     asyncio.create_task(shutdown())
     shutdown_event.set()
