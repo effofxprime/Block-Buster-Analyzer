@@ -9,7 +9,7 @@
 # @Date - 2024-06-06 15:19:00 UTC
 # @Last_Modified_By - Jonathan - Erialos
 # @Last_Modified_Time - 2024-06-23 16:00:00 UTC
-# @Version - 1.0.27
+# @Version - 1.0.28
 # @Description - This script analyzes block sizes in a blockchain and generates various visualizations.
 
 # LOCKED - Only edit when we need to add or remove imports
@@ -32,12 +32,24 @@ import time as tm
 import requests
 import requests_unixsocket
 from urllib.parse import quote_plus
-from tqdm.asyncio import tqdm  # Updated to use tqdm.asyncio for async progress bar
+from tqdm.asyncio import tqdm
 from http.client import IncompleteRead
 import logging
 import psutil  # For system load monitoring
 import aiohttp
 import asyncio
+
+# Set up logging configuration globally
+log_file = None
+start_time = datetime.now(timezone.utc)
+file_timestamp = start_time.strftime('%Y%m%d_%H%M%S')
+
+def configure_logging(lower_height, upper_height):
+    global log_file
+    log_file = f"error_log_{lower_height}_to_{upper_height}_{file_timestamp}.log"
+    logging.basicConfig(filename=log_file, level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+    logging.getLogger().handlers = [h for h in logging.getLogger().handlers if isinstance(h, logging.FileHandler)]
+    logging.info("Logging configured globally.")
 
 # LOCKED
 # Define colors for console output
@@ -98,7 +110,7 @@ async def fetch_block_info_aiohttp(session, endpoint_url, height):
             logging.error(error_message)
             await asyncio.sleep(backoff_factor ** attempt)
         except Exception as e:
-            error_message = f"Catch all unknown error fetching block {height} from {endpoint_url}: {e}."
+            error_message = f"Catch all unknown error fetching block {height} from {endpoint_url}: {e}"
             logging.error(error_message)
             await asyncio.sleep(backoff_factor ** attempt)
 
@@ -119,7 +131,8 @@ def fetch_block_info_socket(endpoint_url, height):
                 log.write(f"{datetime.now(timezone.utc)} - ERROR - {error_message}\n")
             tm.sleep(backoff_factor ** attempt)
         except Exception as e:
-            error_message = f"Catch all unknown error fetching block {height} from {endpoint_url}: {e}."
+            attempt += 1
+            error_message = f"Catch all unknown error fetching block {height} from {endpoint_url}: {e}. Attempt {attempt}. Retrying in {backoff_factor ** attempt} seconds."
             logging.error(error_message)
             with open(log_file, 'a') as log:
                 log.write(f"{datetime.now(timezone.utc)} - ERROR - {error_message}\n")
@@ -185,8 +198,6 @@ def parse_timestamp(timestamp):
         return datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%SZ")
     except ValueError:
         raise ValueError(f"time data '{timestamp}' does not match any known format")
-    except Exception as e:
-        raise ValueError(f"Catch all unknown error parsing timestamp '{timestamp}': {e}")
 
 # LOCKED
 async def process_block(height, endpoint_type, endpoint_url):
@@ -211,6 +222,12 @@ async def process_block(height, endpoint_type, endpoint_url):
         with open(log_file, 'a') as log:
             log.write(f"{datetime.now(timezone.utc)} - ERROR - {error_message}\n")
         return None
+    except Exception as e:
+        error_message = f"Catch all unknown error processing block {height} from {endpoint_url} using {endpoint_type}: {e}"
+        logging.error(error_message)
+        with open(log_file, 'a') as log:
+            log.write(f"{datetime.now(timezone.utc)} - ERROR - {error_message}\n")
+        return None
 
 # LOCKED
 def signal_handler(sig, frame):
@@ -229,9 +246,8 @@ def categorize_block(block, categories):
         logging.error(f"Error converting block size to float: {block['size']} for block {block['height']}")
         return
     except Exception as e:
-        logging.error(f"Catch all unknown error converting block size to float: {block['size']} for block {block['height']}: {e}")
+        logging.error(f"Catch all unknown error converting block size to float: {e} for block {block['height']} with size {block['size']}")
         return
-
     if size < 1:
         categories["less_than_1MB"].append(block)
     elif 1 <= size < 2:
@@ -396,20 +412,8 @@ def default(obj):
         return obj.isoformat()
     raise TypeError("Type not serializable")
 
-# Set up logging configuration globally
-log_file = None
-start_time = datetime.now(timezone.utc)
-file_timestamp = start_time.strftime('%Y%m%d_%H%M%S')
-
-def configure_logging(lower_height, upper_height):
-    global log_file
-    log_file = f"error_log_{lower_height}_to_{upper_height}_{file_timestamp}.log"
-    logging.basicConfig(filename=log_file, level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
-    logging.getLogger().handlers = [h for h in logging.getLogger().handlers if isinstance(h, logging.FileHandler)]
-    logging.info("Logging configured globally.")
-
 async def main():
-    global shutdown_event, executor, json_file_path  # Add json_file_path as a global variable
+    global shutdown_event, executor, log_file, json_file_path  # Add log_file and json_file_path as global variables
     shutdown_event = threading.Event()
 
     signal.signal(signal.SIGINT, signal_handler)
@@ -445,7 +449,7 @@ async def main():
         try:
             with open(json_file_path) as f:
                 data = json.load(f)
-        
+
             # Convert sizes to float and times to datetime
             for block in data["block_data"]:
                 block["size"] = float(block["size"])
@@ -530,6 +534,8 @@ async def main():
                 except Exception as e:
                     error_message = f"Error processing future result: {e}"
                     logging.error(error_message)
+                    with open(log_file, 'a') as log:
+                        log.write(f"{datetime.now(timezone.utc)} - ERROR - {error_message}\n")
                     logging.error(f"Catch all unknown error processing future result: {e}")
                     with open(log_file, 'a') as log:
                         log.write(f"{datetime.now(timezone.utc)} - ERROR - {error_message}\n")
