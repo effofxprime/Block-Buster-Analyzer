@@ -111,29 +111,30 @@ async def fetch_block_info_aiohttp(session, endpoint_url, height):
             logging.error(error_message)
             await asyncio.sleep(backoff_factor ** attempt)
 
-def fetch_block_info_socket(endpoint_url, height):
+async def fetch_block_info_socket(endpoint_url, height):
     backoff_factor = 1.5
     attempt = 0
     while True:
         try:
-            encoded_url = f"http+unix://{quote_plus(endpoint_url)}/block?height={height}"
-            response = requests_unixsocket.Session().get(encoded_url, timeout=3)
-            response.raise_for_status()
-            return response.json()
-        except (requests.exceptions.RequestException) as e:
+            async with aiohttp.ClientSession() as session:
+                encoded_url = f"http+unix://{quote_plus(endpoint_url)}/block?height={height}"
+                async with session.get(encoded_url, timeout=3) as response:
+                    response.raise_for_status()
+                    return await response.json()
+        except (aiohttp.ClientError, aiohttp.http_exceptions.HttpProcessingError, aiohttp.ClientPayloadError) as e:
             attempt += 1
             error_message = f"Error fetching block {height} from {endpoint_url}: {e}. Attempt {attempt}. Retrying in {backoff_factor ** attempt} seconds."
             logging.error(error_message)
-            with open(log_file, 'a') as log:
-                log.write(f"{datetime.now(timezone.utc)} - ERROR - {error_message}\n")
-            time.sleep(backoff_factor ** attempt)
+            async with aiofiles.open(log_file, 'a') as log:
+                await log.write(f"{datetime.now(timezone.utc)} - ERROR - {error_message}\n")
+            await asyncio.sleep(backoff_factor ** attempt)
         except Exception as e:
             attempt += 1
             error_message = f"Catch all unknown error fetching block {height} from {endpoint_url}: {e}. Attempt {attempt}. Retrying in {backoff_factor ** attempt} seconds."
             logging.error(error_message)
-            with open(log_file, 'a') as log:
-                log.write(f"{datetime.now(timezone.utc)} - ERROR - {error_message}\n")
-            time.sleep(backoff_factor ** attempt)
+            async with aiofiles.open(log_file, 'a') as log:
+                await log.write(f"{datetime.now(timezone.utc)} - ERROR - {error_message}\n")
+            await asyncio.sleep(backoff_factor ** attempt)
 
 async def fetch_all_blocks(endpoint_type, endpoint_url, heights):
     results = []
@@ -204,7 +205,7 @@ async def process_block(height, endpoint_type, endpoint_url):
             async with aiohttp.ClientSession() as session:
                 block_info = await fetch_block_info_aiohttp(session, endpoint_url, height)
         else:
-            block_info = fetch_block_info_socket(endpoint_url, height)
+            block_info = await fetch_block_info_socket(endpoint_url, height)
         if block_info is None:
             return None
 
@@ -493,15 +494,17 @@ async def main():
     print(f"{bash_color_dark_grey}\n{'='*40}\n{bash_color_reset}")
 
     heights = range(lower_height, upper_height + 1)
+    # Correcting the bar_format string
     tqdm_progress = tqdm_async(
         total=len(heights), 
         desc="Fetching Blocks", 
         unit="block", 
         bar_format=(
             f"{bash_color_light_blue}{{l_bar}}{{bar}} [Blocks: {{n}}/{{total}}, "
-            f"Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate:.2f}} blocks/s]{bash_color_reset}"
+            f"Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate_fmt}} blocks/s]{bash_color_reset}"
         )
     )
+
     async with aiofiles.open(json_file_path, 'w') as f:
         tasks = [process_block(height, connection_type, endpoint_url) for height in heights]
         for future in tqdm_async(asyncio.as_completed(tasks), total=len(tasks)):
