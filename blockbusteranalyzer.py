@@ -96,7 +96,8 @@ def check_endpoint(endpoint_type, endpoint_url):
 async def fetch_block_info_aiohttp(session, endpoint_url, height):
     backoff_factor = 1.5
     attempt = 0
-    while True:
+    max_retries = 5
+    while attempt < max_retries:
         try:
             async with session.get(f"{endpoint_url}/block?height={height}") as response:
                 response.raise_for_status()
@@ -107,9 +108,12 @@ async def fetch_block_info_aiohttp(session, endpoint_url, height):
             logging.error(error_message)
             await asyncio.sleep(backoff_factor ** attempt)
         except Exception as e:
-            error_message = f"Catch all unknown error fetching block {height} from {endpoint_url}: {e}"
+            attempt += 1
+            error_message = f"Unknown error fetching block {height} from {endpoint_url}: {e}. Attempt {attempt}. Retrying in {backoff_factor ** attempt} seconds."
             logging.error(error_message)
             await asyncio.sleep(backoff_factor ** attempt)
+    logging.error(f"Max retries reached for block {height}. Skipping.")
+    return None
 
 async def fetch_block_info_socket(endpoint_url, height):
     backoff_factor = 1.5
@@ -421,7 +425,7 @@ async def main():
     shutdown_event = asyncio.Event()
 
     loop = asyncio.get_event_loop()
-    loop.add_signal_handler(signal.SIGINT, signal_handler, signal.SIGINT, None)
+    loop.add_signal_handler(signal.SIGINT, signal_handler, signal.SIGTERM, None)
     loop.add_signal_handler(signal.SIGTERM, signal_handler, signal.SIGTERM, None)
     logging.info("Signal handlers configured.")
 
@@ -507,7 +511,7 @@ async def main():
 
     print(f"{bash_color_dark_grey}\n{'='*40}\n{bash_color_reset}")
 
-    semaphore = asyncio.Semaphore(10)
+    semaphore = asyncio.Semaphore(50)  # Increased for higher concurrency
 
     heights = range(lower_height, upper_height + 1)
     tqdm_progress = tqdm_async(
