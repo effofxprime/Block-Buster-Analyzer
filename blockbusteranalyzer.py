@@ -116,7 +116,8 @@ def check_endpoint(endpoint_type, endpoint_url):
         else:
             response = requests.get(f"{endpoint_url}/health", timeout=3)
         return response.status_code == 200
-    except requests.RequestException:
+    except requests.RequestException as e:
+        logging.error(f"Error checking endpoint {endpoint_type} at {endpoint_url}: {e}")
         return False
 
 # LOCKED
@@ -195,14 +196,15 @@ async def fetch_all_blocks(endpoint_type, endpoint_url, heights):
                     failed_heights.append(heights[tasks.index(task)])
                 tqdm_progress.update(1)
     else:
-        tasks = [fetch_block_info_socket(endpoint_url, height) for height in heights]
-        for task in tqdm_async(asyncio.as_completed(tasks), total=len(tasks)):
-            result = await task
-            if result:
-                results.append(result)
-            else:
-                failed_heights.append(heights[tasks.index(task)])
-            tqdm_progress.update(1)
+        async with aiohttp.ClientSession() as session:  # Ensure session is created here
+            tasks = [fetch_block_info_socket(endpoint_url, height) for height in heights]
+            for task in tqdm_async(asyncio.as_completed(tasks), total=len(tasks)):
+                result = await task
+                if result:
+                    results.append(result)
+                else:
+                    failed_heights.append(heights[tasks.index(task)])
+                tqdm_progress.update(1)
 
     tqdm_progress.close()
     logging.info("Completed initial block fetch process. Starting retry for failed blocks.")
@@ -227,11 +229,12 @@ async def retry_failed_blocks(endpoint_type, endpoint_url, failed_heights):
                 if result:
                     results.append(result)
     else:
-        tasks = [fetch_block_info_socket(endpoint_url, failed_height) for failed_height in failed_heights]
-        for task in tqdm_async(asyncio.as_completed(tasks), total=len(tasks), desc="Retrying Blocks", unit="block", bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}} [Blocks: {{n}}/{{total}}, Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate_fmt}}]{bash_color_reset}"):
-            result = await task
-            if result:
-                results.append(result)
+        async with aiohttp.ClientSession() as session:  # Ensure session is created here
+            tasks = [fetch_block_info_socket(endpoint_url, failed_height) for failed_height in failed_heights]
+            for task in tqdm_async(asyncio.as_completed(tasks), total=len(tasks), desc="Retrying Blocks", unit="block", bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}} [Blocks: {{n}}/{{total}}, Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate_fmt}}]{bash_color_reset}"):
+                result = await task
+                if result:
+                    results.append(result)
     return results
 
 # LOCKED
