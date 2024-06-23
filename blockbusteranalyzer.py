@@ -556,7 +556,7 @@ async def main():
         except Exception as e:
             logging.error(f"Error processing JSON file: {e}")
             logging.error(f"Catch all unknown error processing JSON file: {e}")
-    return
+        return
 
 
     # Check endpoint availability
