@@ -171,6 +171,7 @@ async def fetch_block_info_socket(endpoint_url, height):
 
 # LOCKED
 def get_progress_indicator(total, description):
+    logging.info(f"Creating progress indicator for {description} with total: {total}")
     return tqdm_async(total=total, desc=description, unit="block",
                       bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}} [Blocks: {{n}}/{{total}}, Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate_fmt}}]{bash_color_reset}",
                       position=0, leave=True)
