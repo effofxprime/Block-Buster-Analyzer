@@ -224,15 +224,20 @@ async def process_block(height, endpoint_type, endpoint_url, semaphore):
 async def shutdown():
     tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
     print(f"{bash_color_red}\nProcess interrupted. Exiting gracefully...{bash_color_reset}")
-    print(f"{len(tasks)} async operations left to shutdown")
+    total_tasks = len(tasks)
+    print(f"{total_tasks} async operations left to shutdown", end='\r')
     for task in asyncio.as_completed(tasks):
-        task_name = str(task).split()[0]
-        print(f"Waiting for {task_name} to finish...")
-        await asyncio.wait_for(task, timeout=60)
-        print(f"{task_name} finished.")
-        print(f"{len(tasks) - 1} async operations left to shutdown")
-        tasks.remove(task)
-    loop.stop()
+        try:
+            await asyncio.wait_for(task, timeout=10)
+        except asyncio.TimeoutError:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+        total_tasks -= 1
+        print(f"{total_tasks} async operations left to shutdown", end='\r')
+    print(f"{bash_color_green}\nAll async operations have been shut down.{bash_color_reset}")
 
 def signal_handler(sig, frame):
     asyncio.create_task(shutdown())
@@ -411,6 +416,7 @@ async def save_data_incrementally_async(block_data, json_file_path):
 
 async def main():
     global log_file, json_file_path
+    global shutdown_event
     shutdown_event = asyncio.Event()
 
     loop = asyncio.get_event_loop()
@@ -500,13 +506,13 @@ async def main():
 
     print(f"{bash_color_dark_grey}\n{'='*40}\n{bash_color_reset}")
 
-    semaphore = asyncio.Semaphore(10)  # Adjust this number based on your concurrency requirements
+    semaphore = asyncio.Semaphore(10)
 
     heights = range(lower_height, upper_height + 1)
     tqdm_progress = tqdm_async(
-        total=len(heights), 
-        desc="Fetching Blocks", 
-        unit="block", 
+        total=len(heights),
+        desc="Fetching Blocks",
+        unit="block",
         bar_format=(
             f"{bash_color_light_blue}{{l_bar}}{{bar}} [Blocks: {{n}}/{{total}}, "
             f"Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate_fmt}} blocks/s]{bash_color_reset}"
@@ -536,7 +542,7 @@ async def main():
 
             tqdm_progress.update(1)
 
-    tqdm_progress.close()  # Ensure the progress bar is closed properly
+    tqdm_progress.close()
     print("\n")
 
     if shutdown_event.is_set():
