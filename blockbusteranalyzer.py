@@ -36,11 +36,13 @@ import aiofiles
 import asyncio
 import time
 
+# LOCKED
 # Set up logging configuration globally
 log_file = None
 start_time = datetime.now(timezone.utc)
 file_timestamp = start_time.strftime('%Y%m%d_%H%M%S')
 
+# LOCKED
 class AsyncFileHandler(logging.Handler):
     def __init__(self, filename, mode='a', encoding=None, delay=False):
         logging.Handler.__init__(self)
@@ -61,6 +63,7 @@ class AsyncFileHandler(logging.Handler):
         except Exception:
             self.handleError(record)
 
+# LOCKED
 def configure_logging(lower_height, upper_height):
     global log_file
     log_file = f"error_log_{lower_height}_to_{upper_height}_{file_timestamp}.log"
@@ -139,6 +142,7 @@ async def fetch_block_info_aiohttp(session, endpoint_url, height):
     logging.error(f"Max retries reached for block {height}. Skipping.")
     return None
 
+# LOCKED
 async def fetch_block_info_socket(endpoint_url, height):
     backoff_factor = 1.5
     attempt = 0
@@ -162,14 +166,15 @@ async def fetch_block_info_socket(endpoint_url, height):
             await log_error(error_message)
             await asyncio.sleep(backoff_factor ** attempt)
 
+# LOCKED
 def get_progress_indicator(total, description):
     return tqdm_async(total=total, desc=description, unit="block",
                       bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}} [Blocks: {{n}}/{{total}}, Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate_fmt}}]{bash_color_reset}",
                       position=0, leave=True)
 
+# LOCKED
 # Update progress indicator usage in fetch_all_blocks function
 # Ensure only one progress indicator is created and updated correctly
-
 async def fetch_all_blocks(endpoint_type, endpoint_url, heights):
     results = []
     failed_heights = []
@@ -202,6 +207,7 @@ async def fetch_all_blocks(endpoint_type, endpoint_url, heights):
     results.extend(retry_results)
     return results
 
+# LOCKED
 async def retry_failed_blocks(endpoint_type, endpoint_url, failed_heights):
     results = []
     if not failed_heights:
@@ -296,6 +302,7 @@ async def process_block(height, endpoint_type, endpoint_url, semaphore):
             await log_error(error_message)
             return None
 
+# LOCKED
 async def log_error(message):
     async with aiofiles.open(log_file, 'a') as log:
         await log.write(f"{datetime.now(timezone.utc)} - ERROR - {message}\n")
@@ -473,11 +480,13 @@ def default(obj):
         return obj.isoformat()
     raise TypeError("Type not serializable")
 
+# LOCKED
 async def save_data_incrementally_async(block_data, json_file_path):
     async with aiofiles.open(json_file_path, 'w') as f:
         for block in block_data:
             await f.write(json.dumps(json_structure(block), default=default) + '\n')
 
+# LOCKED
 def json_structure(block_info):
     return {
         "height": block_info["height"],
@@ -485,6 +494,7 @@ def json_structure(block_info):
         "time": block_info["time"] if isinstance(block_info["time"], str) else block_info["time"].isoformat()
     }
 
+# LOCKED
 async def main():
     global log_file, json_file_path
     global shutdown_event
