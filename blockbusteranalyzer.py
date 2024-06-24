@@ -109,6 +109,14 @@ def calculate_avg(sizes):
 # LOCKED
 async def log_handler(level, message):
     log_message = f"{datetime.now(timezone.utc)} - {level.upper()} - {message}"
+    if level.lower() == 'error':
+        logging.error(message)
+    elif level.lower() == 'info':
+        logging.info(message)
+    elif level.lower() == 'warning':
+        logging.warning(message)
+    elif level.lower() == 'debug':
+        logging.debug(message)
     async with aiofiles.open(log_file, 'a') as log:
         await log.write(log_message + '\n')
 
@@ -297,12 +305,6 @@ async def process_block(height, endpoint_type, endpoint_url, semaphore):
             error_message = f"Error processing block {height} from {endpoint_url} using {endpoint_type}: {e}"
             await log_handler('error', error_message)
             return None
-
-# LOCKED
-async def log_handler(level, message):
-    log_message = f"{datetime.now(timezone.utc)} - {level.upper()} - {message}"
-    async with aiofiles.open(log_file, 'a') as log:
-        await log.write(log_message + '\n')
 
 # LOCKED
 # Signal handling improvements for graceful shutdown with async operations
@@ -550,11 +552,8 @@ async def main():
     # If a JSON file is specified and exists, skip fetching and directly process the JSON file
     if len(sys.argv) == 6:
         await log_handler('info', f"JSON file specified: {json_file_path}")
-        if os.path.exists(json_file_path):
-            if os.path.getsize(json_file_path) == 0:
-                await log_handler('error', f"JSON file {json_file_path} is empty. Exiting.")
-                return
-            await log_handler('info', "Confirmed JSON file exists.")
+        if os.path.exists(json_file_path) and os.path.getsize(json_file_path) > 0:
+            await log_handler('info', "Confirmed JSON file exists and is not empty.")
             try:
                 await log_handler('info', "About to read JSON file...")
                 data = await read_json_file(json_file_path)
