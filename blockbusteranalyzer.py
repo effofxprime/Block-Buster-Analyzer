@@ -534,14 +534,14 @@ async def main():
         try:
             # Open and read the JSON file asynchronously
             logging.info("Attempting to open JSON file...")
-            async with aiofiles.open(json_file_path, mode='r') as f:
+            async with aiofiles.open(json_file_path, 'r') as f:
                 raw_data = await f.read()
-                logging.info(f"Read {len(raw_data)} lines from JSON file")
+                logging.info(f"Read JSON data from file")
 
             logging.info("Attempting to parse JSON data...")
             # Convert sizes to float and times to datetime
             try:
-                data = [json.loads(line) for line in raw_data]
+                data = json.loads(raw_data)
                 logging.info(f"JSON data parsed successfully, total records: {len(data)}")
             except json.JSONDecodeError as e:
                 logging.error(f"JSONDecodeError processing JSON file: {e}")
