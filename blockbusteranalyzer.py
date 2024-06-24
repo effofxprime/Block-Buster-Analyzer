@@ -503,7 +503,10 @@ async def read_json_file(json_file_path):
     except Exception as e:
         logging.error(f"Error opening JSON file: {e}")
         return None  # Ensure we return None in case of error
-
+    if not raw_data:
+        logging.error("File is empty.")
+        return None
+    
     logging.info("Attempting to parse JSON data...")
     try:
         data = json.loads(raw_data)
