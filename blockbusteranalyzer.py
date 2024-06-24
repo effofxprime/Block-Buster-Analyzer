@@ -529,14 +529,20 @@ async def main():
             logging.info("Attempting to open JSON file...")
             async with aiofiles.open(json_file_path, 'r') as f:
                 raw_data = await f.readlines()
-            logging.info("JSON file read successfully")
-            
-            # Parse JSON data from the file
+                logging.info(f"Read {len(raw_data)} lines from JSON file")
+
             logging.info("Attempting to parse JSON data...")
-            data = [json.loads(line) for line in raw_data]
-            logging.info(f"JSON data parsed successfully, total records: {len(data)}")
-            
             # Convert sizes to float and times to datetime
+            try:
+                data = [json.loads(line) for line in raw_data]
+                logging.info(f"JSON data parsed successfully, total records: {len(data)}")
+            except json.JSONDecodeError as e:
+                logging.error(f"JSONDecodeError processing JSON file: {e}")
+                return
+            except Exception as e:
+                logging.error(f"Unknown error parsing JSON file: {e}")
+                return
+
             logging.info("Structuring block data...")
             block_data = [
                 json_structure({
@@ -561,8 +567,6 @@ async def main():
                 generate_graphs_and_table(block_data, output_image_file_base, lower_height, upper_height)
             else:
                 logging.error("No block data found in the supplied JSON file.")
-        except json.JSONDecodeError as e:
-            logging.error(f"JSONDecodeError processing JSON file: {e}")
         except FileNotFoundError as e:
             logging.error(f"FileNotFoundError processing JSON file: {e}")
         except Exception as e:
