@@ -8,8 +8,8 @@
 # @Twitter - https://twitter.com/ErialosOfAstora
 # @Date - 2024-06-06 15:19:00 UTC
 # @Last_Modified_By - Jonathan - Erialos
-# @Last_Modified_Time - 2024-06-23 16:00:00 UTC
-# @Version - 1.0.28
+# @Last_Modified_Time - 2024-06-24 17:30:00 UTC
+# @Version - 1.0.29
 # @Description - This script analyzes block sizes in a blockchain and generates various visualizations.
 
 # LOCKED - Only edit when we need to add or remove imports
@@ -107,6 +107,11 @@ def calculate_avg(sizes):
     return sum(sizes) / len(sizes) if sizes else 0
 
 # LOCKED
+async def log_handler(level, message):
+    log_message = f"{datetime.now(timezone.utc)} - {level.upper()} - {message}"
+    async with aiofiles.open(log_file, 'a') as log:
+        await log.write(log_message + '\n')
+
 def check_endpoint(endpoint_type, endpoint_url):
     try:
         if endpoint_type == "socket":
@@ -117,7 +122,7 @@ def check_endpoint(endpoint_type, endpoint_url):
             response = requests.get(f"{endpoint_url}/health", timeout=3)
         return response.status_code == 200
     except requests.RequestException as e:
-        logging.error(f"Error checking endpoint {endpoint_type} at {endpoint_url}: {e}")
+        asyncio.run(log_handler('error', f"Error checking endpoint {endpoint_type} at {endpoint_url}: {e}"))
         return False
 
 # LOCKED
@@ -133,14 +138,14 @@ async def fetch_block_info_aiohttp(session, endpoint_url, height):
         except (aiohttp.ClientError, aiohttp.http_exceptions.HttpProcessingError, aiohttp.ClientPayloadError) as e:
             attempt += 1
             error_message = f"Error fetching block {height} from {endpoint_url}: {e}. Attempt {attempt}. Retrying in {backoff_factor ** attempt} seconds."
-            logging.error(error_message)
+            await log_handler('error', error_message)
             await asyncio.sleep(backoff_factor ** attempt)
         except Exception as e:
             attempt += 1
             error_message = f"Unknown error fetching block {height} from {endpoint_url}: {e}. Attempt {attempt}. Retrying in {backoff_factor ** attempt} seconds."
-            logging.error(error_message)
+            await log_handler('error', error_message)
             await asyncio.sleep(backoff_factor ** attempt)
-    logging.error(f"Max retries reached for block {height}. Skipping.")
+    await log_handler('error', f"Max retries reached for block {height}. Skipping.")
     return None
 
 # LOCKED
@@ -157,35 +162,30 @@ async def fetch_block_info_socket(session, endpoint_url, height):
         except (aiohttp.ClientError, aiohttp.http_exceptions.HttpProcessingError, aiohttp.ClientPayloadError) as e:
             attempt += 1
             error_message = f"Error fetching block {height} from {endpoint_url}: {e}. Attempt {attempt}. Retrying in {backoff_factor ** attempt} seconds."
-            logging.error(error_message)
-            await log_error(error_message)
+            await log_handler('error', error_message)
             await asyncio.sleep(backoff_factor ** attempt)
         except Exception as e:
             attempt += 1
             error_message = f"Catch all unknown error fetching block {height} from {endpoint_url}: {e}. Attempt {attempt}. Retrying in {backoff_factor ** attempt} seconds."
-            logging.error(error_message)
-            await log_error(error_message)
+            await log_handler('error', error_message)
             await asyncio.sleep(backoff_factor ** attempt)
-    logging.error(f"Max retries reached for block {height}. Skipping.")
+    await log_handler('error', f"Max retries reached for block {height}. Skipping.")
     return None
 
-# LOCKED
 def get_progress_indicator(total, description):
-    logging.info(f"Creating progress indicator for {description} with total: {total}")
+    asyncio.run(log_handler('info', f"Creating progress indicator for {description} with total: {total}"))
     return tqdm_async(total=total, desc=description, unit="block",
                       bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}} [Blocks: {{n}}/{{total}}, Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate_fmt}}]{bash_color_reset}",
                       position=0, leave=True)
 
 # LOCKED
-# Update progress indicator usage in fetch_all_blocks function
-# Ensure only one progress indicator is created and updated correctly
 async def fetch_all_blocks(endpoint_type, endpoint_url, heights):
     results = []
     failed_heights = []
 
     tqdm_progress = get_progress_indicator(len(heights), "Fetching Blocks")
 
-    logging.info("Starting block fetch process.")
+    await log_handler('info', "Starting block fetch process.")
     async with aiohttp.ClientSession() as session:
         if endpoint_type == "tcp":
             tasks = [fetch_block_info_aiohttp(session, endpoint_url, height) for height in heights]
@@ -201,10 +201,10 @@ async def fetch_all_blocks(endpoint_type, endpoint_url, heights):
             tqdm_progress.update(1)
 
     tqdm_progress.close()
-    logging.info("Completed initial block fetch process. Starting retry for failed blocks.")
+    await log_handler('info', "Completed initial block fetch process. Starting retry for failed blocks.")
     retry_results = await retry_failed_blocks(endpoint_type, endpoint_url, failed_heights)
     results.extend(retry_results)
-    logging.info("Completed retry for failed blocks.")
+    await log_handler('info', "Completed retry for failed blocks.")
     return results
 
 # LOCKED
@@ -213,7 +213,7 @@ async def retry_failed_blocks(endpoint_type, endpoint_url, failed_heights):
     if not failed_heights:
         return results
 
-    logging.info(f"Retrying {len(failed_heights)} failed blocks...")
+    await log_handler('info', f"Retrying {len(failed_heights)} failed blocks...")
 
     async with aiohttp.ClientSession() as session:
         if endpoint_type == "tcp":
@@ -252,12 +252,12 @@ def find_lowest_height(endpoint_type, endpoint_url):
                 if "lowest height is" in data_message:
                     return int(data_message.split("lowest height is")[1].strip())
         else:
-            logging.error(f"HTTPError while finding the lowest height from {endpoint_url} using {endpoint_type}: {e}")
+            asyncio.run(log_handler('error', f"HTTPError while finding the lowest height from {endpoint_url} using {endpoint_type}: {e}"))
     except requests.RequestException as e:
-        logging.error(f"RequestException while finding the lowest height from {endpoint_url} using {endpoint_type}: {e}")
+        asyncio.run(log_handler('error', f"RequestException while finding the lowest height from {endpoint_url} using {endpoint_type}: {e}"))
         return None
     except Exception as e:
-        logging.error(f"Catch all unknown error while finding the lowest height from {endpoint_url} using {endpoint_type}: {e}")
+        asyncio.run(log_handler('error', f"Catch all unknown error while finding the lowest height from {endpoint_url} using {endpoint_type}: {e}"))
         return None
 
     return 1
@@ -295,14 +295,14 @@ async def process_block(height, endpoint_type, endpoint_url, semaphore):
             }
         except Exception as e:
             error_message = f"Error processing block {height} from {endpoint_url} using {endpoint_type}: {e}"
-            logging.error(error_message)
-            await log_error(error_message)
+            await log_handler('error', error_message)
             return None
 
 # LOCKED
-async def log_error(message):
+async def log_handler(level, message):
+    log_message = f"{datetime.now(timezone.utc)} - {level.upper()} - {message}"
     async with aiofiles.open(log_file, 'a') as log:
-        await log.write(f"{datetime.now(timezone.utc)} - ERROR - {message}\n")
+        await log.write(log_message + '\n')
 
 # LOCKED
 # Signal handling improvements for graceful shutdown with async operations
@@ -323,7 +323,7 @@ async def shutdown():
         total_tasks -= 1
         print(f"{total_tasks} async operations left to shutdown", end='\r')
     print(f"{bash_color_green}\nAll async operations have been shut down.{bash_color_reset}")
-    sys.exit(0)  # Ensure immediate termination
+    sys.exit(0)
 
 # LOCKED
 def signal_handler(sig, frame):
@@ -335,10 +335,10 @@ def categorize_block(block, categories):
     try:
         size = float(block["size"])
     except ValueError:
-        logging.error(f"Error converting block size to float: {block['size']} for block {block['height']}")
+        asyncio.run(log_handler('error', f"Error converting block size to float: {block['size']} for block {block['height']}"))
         return
     except Exception as e:
-        logging.error(f"Catch all unknown error converting block size to float: {e} for block {block['height']} with size {block['size']}")
+        asyncio.run(log_handler('error', f"Catch all unknown error converting block size to float: {e} for block {block['height']} with size {block['size']}"))
         return
     if size < 1:
         categories["less_than_1MB"].append(block)
@@ -356,7 +356,7 @@ def categorize_block(block, categories):
 def generate_scatter_chart(times, sizes, colors, output_image_file_base, lower_height, upper_height):
     print(f"{bash_color_light_blue}Generating scatter chart...{bash_color_reset}")
     fig, ax = plt.subplots(figsize=(38, 20))
-    scatter = ax.scatter(times, sizes, c=colors, s=30)  # Increased dot size
+    scatter = ax.scatter(times, sizes, c=colors, s=30)
     ax.set_title(f'Block Size Over Time (Scatter Chart)\nBlock Heights {lower_height} to {upper_height}', fontsize=32)
     ax.set_xlabel('Time', fontsize=32)
     ax.set_ylabel('Block Size (MB)', fontsize=32)
@@ -381,7 +381,7 @@ def generate_scatter_chart(times, sizes, colors, output_image_file_base, lower_h
 def generate_enhanced_scatter_chart(times, sizes, colors, output_image_file_base, lower_height, upper_height):
     print(f"{bash_color_light_blue}Generating enhanced scatter chart...{bash_color_reset}")
     fig, ax = plt.subplots(figsize=(38, 20))
-    scatter = ax.scatter(times, sizes, c=colors, s=30, alpha=0.6, edgecolors='w', linewidth=0.5)  # Increased dot size
+    scatter = ax.scatter(times, sizes, c=colors, s=30, alpha=0.6, edgecolors='w', linewidth=0.5)
     ax.set_title(f'Block Size Over Time (Enhanced Scatter Chart)\nBlock Heights {lower_height} to {upper_height}', fontsize=32)
     ax.set_xlabel('Time', fontsize=32)
     ax.set_ylabel('Block Size (MB)', fontsize=32)
@@ -457,11 +457,8 @@ def generate_graphs_and_table(block_data, output_image_file_base, lower_height, 
         for block in block_data
     ]
 
-    # Generate scatter and enhanced scatter charts first
     generate_scatter_chart(times, sizes, colors, output_image_file_base, lower_height, upper_height)
     generate_enhanced_scatter_chart(times, sizes, colors, output_image_file_base, lower_height, upper_height)
-
-    # Generate segmented bar chart
     generate_segmented_bar_chart(times, sizes, output_image_file_base)
 
 # LOCKED
@@ -473,12 +470,12 @@ def default(obj):
 # LOCKED
 async def save_data_incrementally_async(block_data, json_file_path):
     async with aiofiles.open(json_file_path, 'w') as f:
-        await f.write('[')  # Start of JSON array
+        await f.write('[')
         for i, block in enumerate(block_data):
             if i > 0:
-                await f.write(', ')  # Add comma between JSON objects
+                await f.write(', ')
             await f.write(json.dumps(json_structure(block), default=default))
-        await f.write(']')  # End of JSON array
+        await f.write(']')
 
 # LOCKED
 def json_structure(block_info):
@@ -490,27 +487,27 @@ def json_structure(block_info):
 
 # LOCKED
 async def read_json_file(json_file_path):
-    logging.info("Attempting to open JSON file...")
+    await log_handler('info', "Attempting to open JSON file...")
     try:
         async with aiofiles.open(json_file_path, 'r') as f:
             raw_data = await f.read()
-            logging.info("Read JSON data from file")
+            await log_handler('info', "Read JSON data from file")
     except FileNotFoundError as e:
-        logging.error(f"FileNotFoundError: {e}")
+        await log_handler('error', f"FileNotFoundError: {e}")
         return None
     except Exception as e:
-        logging.error(f"Error opening JSON file: {e}")
+        await log_handler('error', f"Error opening JSON file: {e}")
         return None
-    
-    logging.info("Attempting to parse JSON data...")
+
+    await log_handler('info', "Attempting to parse JSON data...")
     try:
         data = json.loads(raw_data)
-        logging.info(f"JSON data parsed successfully, total records: {len(data)}")
+        await log_handler('info', f"JSON data parsed successfully, total records: {len(data)}")
         return data
     except json.JSONDecodeError as e:
-        logging.error(f"JSONDecodeError: {e}")
+        await log_handler('error', f"JSONDecodeError: {e}")
     except Exception as e:
-        logging.error(f"Unknown error parsing JSON file: {e}")
+        await log_handler('error', f"Unknown error parsing JSON file: {e}")
     return None
 
 # LOCKED
@@ -522,10 +519,10 @@ async def main():
     loop = asyncio.get_event_loop()
     loop.add_signal_handler(signal.SIGINT, signal_handler, signal.SIGTERM, None)
     loop.add_signal_handler(signal.SIGTERM, signal_handler, signal.SIGTERM, None)
-    logging.info("Signal handlers configured.")
+    await log_handler('info', "Signal handlers configured.")
 
     if len(sys.argv) < 5 or len(sys.argv) > 6:
-        logging.error("Incorrect number of arguments.")
+        await log_handler('error', "Incorrect number of arguments.")
         print(f"Usage: {sys.argv[0]} <lower_height> <upper_height> <connection_type> <endpoint_url> [<json_file_path>]")
         sys.exit(1)
 
@@ -552,22 +549,24 @@ async def main():
 
     # If a JSON file is specified and exists, skip fetching and directly process the JSON file
     if len(sys.argv) == 6:
-        logging.info(f"JSON file specified: {json_file_path}")
+        await log_handler('info', f"JSON file specified: {json_file_path}")
         if os.path.exists(json_file_path):
             if os.path.getsize(json_file_path) == 0:
-                logging.error(f"JSON file {json_file_path} is empty. Exiting.")
+                await log_handler('error', f"JSON file {json_file_path} is empty. Exiting.")
                 return
-            logging.info("Confirmed JSON file exists.")
+            await log_handler('info', "Confirmed JSON file exists.")
             try:
+                await log_handler('info', "About to read JSON file...")
                 data = await read_json_file(json_file_path)
+                await log_handler('info', f"Read JSON file successfully. Sample data: {data[:2]}")
             except Exception as e:
-                logging.error(f"Error reading JSON file: {e}")
+                await log_handler('error', f"Error reading JSON file: {e}")
                 return
             if data is None:
-                logging.error("No data found in JSON file. Exiting.")
+                await log_handler('error', "No data found in JSON file. Exiting.")
                 return
 
-            logging.info("Structuring block data...")
+            await log_handler('info', "Structuring block data...")
             try:
                 block_data = [
                     json_structure({
@@ -577,12 +576,12 @@ async def main():
                     })
                     for block in data
                 ]
-                logging.info(f"Block data structured successfully. Sample data: {block_data[:2]}")  # Log first two items for brevity
+                await log_handler('info', f"Block data structured successfully. Sample data: {block_data[:2]}")
             except KeyError as e:
-                logging.error(f"KeyError in block data structure: {e}")
+                await log_handler('error', f"KeyError in block data structure: {e}")
                 return
             except Exception as e:
-                logging.error(f"Unknown error structuring block data: {e}")
+                await log_handler('error', f"Unknown error structuring block data: {e}")
                 return
 
             # Infer lower and upper height from JSON file name
@@ -590,17 +589,17 @@ async def main():
             if match:
                 lower_height = int(match.group(1))
                 upper_height = int(match.group(2))
-            logging.info(f"Inferred heights: lower_height={lower_height}, upper_height={upper_height}")
+            await log_handler('info', f"Inferred heights: lower_height={lower_height}, upper_height={upper_height}")
 
             # Ensure block_data is not empty before generating graphs and table
             if block_data:
-                logging.info("Block data is not empty. Generating graphs and table.")
+                await log_handler('info', "Block data is not empty. Generating graphs and table.")
                 generate_graphs_and_table(block_data, output_image_file_base, lower_height, upper_height)
             else:
-                logging.error("No block data found in the supplied JSON file.")
+                await log_handler('error', "No block data found in the supplied JSON file.")
             return
         elif not os.path.exists(json_file_path):
-            logging.error(f"JSON file {json_file_path} does not exist. Exiting.")
+            await log_handler('error', f"JSON file {json_file_path} does not exist. Exiting.")
             return
 
     # The rest of the code will only execute if the JSON file does not exist
@@ -610,32 +609,31 @@ async def main():
         if check_endpoint(connection_type, endpoint_url):
             break
         else:
-            logging.warning(f"RPC endpoint unreachable. Retrying {attempt + 1}/{retries}...")
+            await log_handler('warning', f"RPC endpoint unreachable. Retrying {attempt + 1}/{retries}...")
             await asyncio.sleep(5)
     else:
-        logging.error("RPC endpoint unreachable after multiple attempts. Exiting.")
+        await log_handler('error', "RPC endpoint unreachable after multiple attempts. Exiting.")
         print(f"{bash_color_red}RPC endpoint unreachable after multiple attempts. Exiting.{bash_color_reset}")
         sys.exit(1)
 
-    # Find the lowest available height if necessary
     if lower_height == 0:
         lowest_height = find_lowest_height(connection_type, endpoint_url)
         if lowest_height is None:
-            logging.error("Failed to determine the earliest block height. Exiting.")
+            await log_handler('error', "Failed to determine the earliest block height. Exiting.")
             print(f"{bash_color_red}Failed to determine the earliest block height. Exiting.{bash_color_reset}")
             sys.exit(1)
-        logging.info(f"Using earliest available block height: {lowest_height}")
+        await log_handler('info', f"Using earliest available block height: {lowest_height}")
         print(f"{bash_color_light_blue}Using earliest available block height: {lowest_height}{bash_color_reset}")
         lower_height = lowest_height
 
     if lower_height > upper_height:
-        logging.error(f"The specified lower height {lower_height} is greater than the specified upper height {upper_height}. Exiting.")
+        await log_handler('error', f"The specified lower height {lower_height} is greater than the specified upper height {upper_height}. Exiting.")
         print(f"{bash_color_red}The specified lower height {lower_height} is greater than the specified upper height {upper_height}. Exiting.{bash_color_reset}")
         sys.exit(1)
 
     json_file_path = f"{output_image_file_base}.json"
     block_data = []
-    logging.info("Fetching block information. This may take a while for large ranges. Please wait.")
+    await log_handler('info', "Fetching block information. This may take a while for large ranges. Please wait.")
     print(f"{bash_color_light_blue}\nFetching block information. This may take a while for large ranges. Please wait...{bash_color_reset}")
 
     start_script_time = time.time()
@@ -643,7 +641,7 @@ async def main():
 
     print(f"{bash_color_dark_grey}\n{'='*40}\n{bash_color_reset}")
 
-    semaphore = asyncio.Semaphore(50)  # Increased for higher concurrency
+    semaphore = asyncio.Semaphore(50)
 
     heights = range(lower_height, upper_height + 1)
     tqdm_progress = get_progress_indicator(len(heights), "Fetching Blocks")
@@ -651,7 +649,7 @@ async def main():
         tasks = [process_block(height, connection_type, endpoint_url, semaphore) for height in heights]
         for future in tqdm_async(asyncio.as_completed(tasks), total=len(tasks)):
             if shutdown_event.is_set():
-                logging.info("Shutdown event detected. Exiting.")
+                await log_handler('info', "Shutdown event detected. Exiting.")
                 print(f"{bash_color_red}Shutdown event detected. Exiting...{bash_color_reset}")
                 break
             try:
@@ -662,10 +660,7 @@ async def main():
                     await f.write(json.dumps(block, default=default) + '\n')
             except Exception as e:
                 error_message = f"Error processing future result: {e}"
-                logging.error(error_message)
-                await log_error(error_message)
-                logging.error(f"Catch all unknown error processing future result: {e}")
-                await log_error(f"Catch all unknown error processing future result: {e}")
+                await log_handler('error', error_message)
 
             tqdm_progress.update(1)
 
@@ -673,13 +668,13 @@ async def main():
     print("\n")
 
     if shutdown_event.is_set():
-        logging.info("Shutdown event detected. Exiting.")
+        await log_handler('info', "Shutdown event detected. Exiting.")
         print(f"{bash_color_red}Shutdown event detected. Exiting...{bash_color_reset}")
         sys.exit(0)
 
     end_time = datetime.now(timezone.utc)
     actual_time = end_time - start_time
-    logging.info(f"Fetching completed in {actual_time}. Saving data.")
+    await log_handler('info', f"Fetching completed in {actual_time}. Saving data.")
     print(f"{bash_color_light_green}\nFetching completed in {actual_time}. Saving data...{bash_color_reset}")
 
     # Save data incrementally
