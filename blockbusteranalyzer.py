@@ -517,14 +517,18 @@ async def main():
     # Ensure the json_file_path follows the correct naming convention
     json_file_path = sys.argv[5] if len(sys.argv) == 6 else f"block_sizes_{lower_height}_to_{upper_height}_{file_timestamp}.json"
 
+    # Resolve full path for json_file_path
+    if not os.path.isabs(json_file_path):
+        json_file_path = os.path.join(os.getcwd(), json_file_path)
+
     # Handle path for output image file base
     output_image_file_base = os.path.splitext(os.path.basename(json_file_path))[0]
 
     # Configure logging
     configure_logging(lower_height, upper_height)
 
-    # If a JSON file is specified, skip fetching and directly process the JSON file
-    if os.path.exists(json_file_path):
+    # If a JSON file is specified and exists, skip fetching and directly process the JSON file
+    if len(sys.argv) == 6 and os.path.exists(json_file_path):
         logging.info(f"JSON file specified: {json_file_path}")
         logging.info("Confirmed JSON file exists.")
         try:
@@ -582,7 +586,7 @@ async def main():
         except Exception as e:
             logging.error(f"Unknown error processing JSON file: {e}")
         return
-    else:
+    elif len(sys.argv) == 6 and not os.path.exists(json_file_path):
         logging.error(f"JSON file {json_file_path} does not exist. Exiting.")
         return        
 
