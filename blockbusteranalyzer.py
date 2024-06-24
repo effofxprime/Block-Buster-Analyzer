@@ -524,9 +524,13 @@ async def main():
     # If a JSON file is specified, skip fetching and directly process the JSON file
     if json_file_path and os.path.exists(json_file_path):
         try:
+            # Open and read the JSON file asynchronously
             async with aiofiles.open(json_file_path, 'r') as f:
-                data = [json.loads(line) for line in await f.readlines()]
-
+                raw_data = await f.readlines()
+            
+            # Parse JSON data from the file
+            data = [json.loads(line) for line in raw_data]
+            
             # Convert sizes to float and times to datetime
             block_data = [
                 json_structure({
@@ -548,9 +552,12 @@ async def main():
                 generate_graphs_and_table(block_data, output_image_file_base, lower_height, upper_height)
             else:
                 logging.error("No block data found in the supplied JSON file.")
+        except json.JSONDecodeError as e:
+            logging.error(f"JSONDecodeError processing JSON file: {e}")
+        except FileNotFoundError as e:
+            logging.error(f"FileNotFoundError processing JSON file: {e}")
         except Exception as e:
-            logging.error(f"Error processing JSON file: {e}")
-            logging.error(f"Catch all unknown error processing JSON file: {e}")
+            logging.error(f"Unknown error processing JSON file: {e}")
         return
 
     # Check endpoint availability
