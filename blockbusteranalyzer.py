@@ -228,7 +228,7 @@ async def retry_failed_blocks(endpoint_type, endpoint_url, failed_heights):
     return results
 
 # LOCKED
-def find_lowest_height(endpoint_type, endpoint_url):
+async def find_lowest_height(endpoint_type, endpoint_url):
     try:
         if endpoint_type == "socket":
             session = requests_unixsocket.Session()
@@ -331,7 +331,7 @@ def signal_handler(sig, frame):
     shutdown_event.set()
 
 # LOCKED
-def categorize_block(block, categories):
+async def categorize_block(block, categories):
     try:
         size = float(block["size"])
     except ValueError:
@@ -353,7 +353,7 @@ def categorize_block(block, categories):
 
 # LOCKED - All chart functions are locked
 # Chart generation functions
-def generate_scatter_chart(times, sizes, colors, output_image_file_base, lower_height, upper_height):
+async def generate_scatter_chart(times, sizes, colors, output_image_file_base, lower_height, upper_height):
     print(f"{bash_color_light_blue}Generating scatter chart...{bash_color_reset}")
     fig, ax = plt.subplots(figsize=(38, 20))
     scatter = ax.scatter(times, sizes, c=colors, s=30)  # Increased dot size
@@ -378,7 +378,7 @@ def generate_scatter_chart(times, sizes, colors, output_image_file_base, lower_h
     plt.savefig(f"{output_image_file_base}_scatter_chart.png")
     print(f"{bash_color_light_green}Scatter chart generated successfully.{bash_color_reset}")
 
-def generate_enhanced_scatter_chart(times, sizes, colors, output_image_file_base, lower_height, upper_height):
+async def generate_enhanced_scatter_chart(times, sizes, colors, output_image_file_base, lower_height, upper_height):
     print(f"{bash_color_light_blue}Generating enhanced scatter chart...{bash_color_reset}")
     fig, ax = plt.subplots(figsize=(38, 20))
     scatter = ax.scatter(times, sizes, c=colors, s=30, alpha=0.6, edgecolors='w', linewidth=0.5)  # Increased dot size
@@ -403,7 +403,7 @@ def generate_enhanced_scatter_chart(times, sizes, colors, output_image_file_base
     plt.savefig(f"{output_image_file_base}_enhanced_scatter_chart.png")
     print(f"{bash_color_light_green}Enhanced scatter chart generated successfully.{bash_color_reset}")
 
-def generate_segmented_bar_chart(times, sizes, output_image_file_base):
+async def generate_segmented_bar_chart(times, sizes, output_image_file_base):
     print(f"{bash_color_light_blue}Generating segmented bar chart...{bash_color_reset}")
     data = pd.DataFrame({"times": times, "sizes": sizes})
     data["size_range"] = pd.cut(data["sizes"], bins=[0, 1, 2, 3, 5, np.inf], labels=["<1MB", "1MB-2MB", "2MB-3MB", "3MB-5MB", ">5MB"])
@@ -422,7 +422,7 @@ def generate_segmented_bar_chart(times, sizes, output_image_file_base):
     print(f"{bash_color_light_green}Segmented bar chart generated successfully.{bash_color_reset}")
 
 # LOCKED
-def generate_graphs_and_table(block_data, output_image_file_base, lower_height, upper_height):
+async def generate_graphs_and_table(block_data, output_image_file_base, lower_height, upper_height):
     categories = {
         "less_than_1MB": [],
         "1MB_to_2MB": [],
@@ -432,7 +432,7 @@ def generate_graphs_and_table(block_data, output_image_file_base, lower_height, 
     }
 
     for block in block_data:
-        categorize_block(block, categories)
+        await categorize_block(block, categories)
 
     total_blocks = len(block_data)
     table = [
@@ -458,11 +458,11 @@ def generate_graphs_and_table(block_data, output_image_file_base, lower_height, 
     ]
 
     # Generate scatter and enhanced scatter charts first
-    generate_scatter_chart(times, sizes, colors, output_image_file_base, lower_height, upper_height)
-    generate_enhanced_scatter_chart(times, sizes, colors, output_image_file_base, lower_height, upper_height)
+    await generate_scatter_chart(times, sizes, colors, output_image_file_base, lower_height, upper_height)
+    await generate_enhanced_scatter_chart(times, sizes, colors, output_image_file_base, lower_height, upper_height)
 
     # Generate segmented bar chart
-    generate_segmented_bar_chart(times, sizes, output_image_file_base)
+    await generate_segmented_bar_chart(times, sizes, output_image_file_base)
 
 # LOCKED
 def default(obj):
@@ -481,7 +481,7 @@ async def save_data_incrementally_async(block_data, json_file_path):
         await f.write(']')  # End of JSON array
 
 # LOCKED
-def json_structure(block_info):
+async def json_structure(block_info):
     return {
         "height": block_info["height"],
         "size": float(block_info["size"]),
@@ -504,7 +504,7 @@ async def read_json_file(json_file_path):
     
     logging.info("Attempting to parse JSON data...")
     try:
-        data = json.loads(raw_data)
+        data = json.loads(await raw_data)
         logging.info(f"JSON data parsed successfully, total records: {len(data)}")
         return data
     except json.JSONDecodeError as e:
@@ -570,7 +570,7 @@ async def main():
             logging.info("Structuring block data...")
             try:
                 block_data = [
-                    json_structure({
+                    await json_structure({
                         "height": block["height"],
                         "size": float(block["size"]),
                         "time": parse_timestamp(block["time"])
@@ -607,7 +607,7 @@ async def main():
     # Check endpoint availability
     retries = 3
     for attempt in range(retries):
-        if check_endpoint(connection_type, endpoint_url):
+        if await check_endpoint(connection_type, endpoint_url):
             break
         else:
             logging.warning(f"RPC endpoint unreachable. Retrying {attempt + 1}/{retries}...")
@@ -619,7 +619,7 @@ async def main():
 
     # Find the lowest available height if necessary
     if lower_height == 0:
-        lowest_height = find_lowest_height(connection_type, endpoint_url)
+        lowest_height = await find_lowest_height(connection_type, endpoint_url)
         if lowest_height is None:
             logging.error("Failed to determine the earliest block height. Exiting.")
             print(f"{bash_color_red}Failed to determine the earliest block height. Exiting.{bash_color_reset}")
@@ -657,7 +657,7 @@ async def main():
             try:
                 result = await future
                 if result:
-                    block = json_structure({"height": result["height"], "size": result["size"], "time": result["time"]})
+                    block = await json_structure({"height": result["height"], "size": result["size"], "time": result["time"]})
                     block_data.append(block)
                     await f.write(json.dumps(block, default=default) + '\n')
             except Exception as e:
