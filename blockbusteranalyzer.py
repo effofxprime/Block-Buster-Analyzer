@@ -516,14 +516,17 @@ async def main():
 
     # Ensure the json_file_path follows the correct naming convention
     json_file_path = sys.argv[5] if len(sys.argv) == 6 else f"block_sizes_{lower_height}_to_{upper_height}_{file_timestamp}.json"
-    output_image_file_base = os.path.splitext(json_file_path)[0]
+
+    # Handle path for output image file base
+    output_image_file_base = os.path.splitext(os.path.basename(json_file_path))[0]
 
     # Configure logging
     configure_logging(lower_height, upper_height)
 
     # If a JSON file is specified, skip fetching and directly process the JSON file
-    if json_file_path and os.path.exists(json_file_path):
+    if os.path.exists(json_file_path):
         logging.info(f"JSON file specified: {json_file_path}")
+        logging.info("Confirmed JSON file exists.")
         try:
             # Open and read the JSON file asynchronously
             logging.info("Attempting to open JSON file...")
@@ -544,15 +547,22 @@ async def main():
                 return
 
             logging.info("Structuring block data...")
-            block_data = [
-                json_structure({
-                    "height": block["height"],
-                    "size": float(block["size"]),
-                    "time": parse_timestamp(block["time"])
-                })
-                for block in data
-            ]
-            logging.info(f"Block data structured: {block_data[:2]}...")  # Log first two items for brevity
+            try:
+                block_data = [
+                    json_structure({
+                        "height": block["height"],
+                        "size": float(block["size"]),
+                        "time": parse_timestamp(block["time"])
+                    })
+                    for block in data
+                ]
+                logging.info(f"Block data structured successfully. Sample data: {block_data[:2]}")  # Log first two items for brevity
+            except KeyError as e:
+                logging.error(f"KeyError in block data structure: {e}")
+                return
+            except Exception as e:
+                logging.error(f"Unknown error structuring block data: {e}")
+                return
 
             # Infer lower and upper height from JSON file name
             match = re.search(r"(\d+)_to_(\d+)", json_file_path)
@@ -573,8 +583,10 @@ async def main():
             logging.error(f"Unknown error processing JSON file: {e}")
         return
     else:
-        logging.info("No JSON file specified or file does not exist. Proceeding to fetch data.")
+        logging.error(f"JSON file {json_file_path} does not exist. Exiting.")
+        return        
 
+    # The rest of the code will only execute if the JSON file does not exist
     # Check endpoint availability
     retries = 3
     for attempt in range(retries):
