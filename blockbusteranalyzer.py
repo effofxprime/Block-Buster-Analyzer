@@ -496,13 +496,13 @@ async def read_json_file(json_file_path):
     try:
         async with aiofiles.open(json_file_path, 'r') as f:
             raw_data = await f.read()
-            logging.info(f"Read JSON data from file")
+            logging.info("Read JSON data from file")
     except FileNotFoundError as e:
         logging.error(f"FileNotFoundError: {e}")
         return None
     except Exception as e:
         logging.error(f"Error opening JSON file: {e}")
-        raise e
+        return None  # Ensure we return None in case of error
 
     logging.info("Attempting to parse JSON data...")
     try:
@@ -557,7 +557,11 @@ async def main():
         logging.info(f"JSON file specified: {json_file_path}")
         if os.path.exists(json_file_path):
             logging.info("Confirmed JSON file exists.")
-            data = await read_json_file(json_file_path)
+            try:
+                data = await read_json_file(json_file_path)
+            except Exception as e:
+                logging.error(f"Error reading JSON file: {e}")
+                return
             if data is None:
                 logging.error("No data found in JSON file. Exiting.")
                 return
