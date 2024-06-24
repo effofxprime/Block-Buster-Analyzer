@@ -523,13 +523,16 @@ async def main():
 
     # If a JSON file is specified, skip fetching and directly process the JSON file
     if json_file_path and os.path.exists(json_file_path):
+        logging.info(f"JSON file specified: {json_file_path}")
         try:
             # Open and read the JSON file asynchronously
             async with aiofiles.open(json_file_path, 'r') as f:
                 raw_data = await f.readlines()
+            logging.info("JSON file read successfully")
             
             # Parse JSON data from the file
             data = [json.loads(line) for line in raw_data]
+            logging.info("JSON data parsed successfully")
             
             # Convert sizes to float and times to datetime
             block_data = [
@@ -540,15 +543,18 @@ async def main():
                 })
                 for block in data
             ]
+            logging.info(f"Block data structured: {block_data[:2]}...")  # Log first two items for brevity
 
             # Infer lower and upper height from JSON file name
             match = re.search(r"(\d+)_to_(\d+)", json_file_path)
             if match:
                 lower_height = int(match.group(1))
                 upper_height = int(match.group(2))
+            logging.info(f"Inferred heights: lower_height={lower_height}, upper_height={upper_height}")
 
             # Ensure block_data is not empty before generating graphs and table
             if block_data:
+                logging.info("Block data is not empty. Generating graphs and table.")
                 generate_graphs_and_table(block_data, output_image_file_base, lower_height, upper_height)
             else:
                 logging.error("No block data found in the supplied JSON file.")
@@ -559,6 +565,8 @@ async def main():
         except Exception as e:
             logging.error(f"Unknown error processing JSON file: {e}")
         return
+    else:
+        logging.info("No JSON file specified or file does not exist. Proceeding to fetch data.")
 
     # Check endpoint availability
     retries = 3
