@@ -479,8 +479,12 @@ def default(obj):
 # LOCKED
 async def save_data_incrementally_async(block_data, json_file_path):
     async with aiofiles.open(json_file_path, 'w') as f:
-        for block in block_data:
-            await f.write(json.dumps(json_structure(block), default=default) + '\n')
+        await f.write('[')  # Start of JSON array
+        for i, block in enumerate(block_data):
+            if i > 0:
+                await f.write(', ')  # Add comma between JSON objects
+            await f.write(json.dumps(json_structure(block), default=default))
+        await f.write(']')  # End of JSON array
 
 # LOCKED
 def json_structure(block_info):
