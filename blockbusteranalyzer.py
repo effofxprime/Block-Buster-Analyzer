@@ -534,7 +534,7 @@ async def main():
         try:
             # Open and read the JSON file asynchronously
             logging.info("Attempting to open JSON file...")
-            async with aiofiles.open(json_file_path, 'r') as f:
+            async with aiofiles.open(json_file_path, mode='r') as f:
                 raw_data = await f.read()
                 logging.info(f"Read {len(raw_data)} lines from JSON file")
 
