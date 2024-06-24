@@ -502,13 +502,13 @@ async def read_json_file(json_file_path):
         return None
     except Exception as e:
         logging.error(f"Error opening JSON file: {e}")
-        return None
+        raise e
 
     logging.info("Attempting to parse JSON data...")
     try:
         data = json.loads(raw_data)
         logging.info(f"JSON data parsed successfully, total records: {len(data)}")
-        return await data
+        return data
     except json.JSONDecodeError as e:
         logging.error(f"JSONDecodeError: {e}")
     except Exception as e:
@@ -553,48 +553,50 @@ async def main():
     configure_logging(lower_height, upper_height)
 
     # If a JSON file is specified and exists, skip fetching and directly process the JSON file
-    if len(sys.argv) == 6 and os.path.exists(json_file_path):
+    if len(sys.argv) == 6:
         logging.info(f"JSON file specified: {json_file_path}")
-        logging.info("Confirmed JSON file exists.")
-        data = await read_json_file(json_file_path)
-        if data is None:
-            return
+        if os.path.exists(json_file_path):
+            logging.info("Confirmed JSON file exists.")
+            data = await read_json_file(json_file_path)
+            if data is None:
+                logging.error("No data found in JSON file. Exiting.")
+                return
 
-        logging.info("Structuring block data...")
-        try:
-            block_data = [
-                json_structure({
-                    "height": block["height"],
-                    "size": float(block["size"]),
-                    "time": parse_timestamp(block["time"])
-                })
-                for block in data
-            ]
-            logging.info(f"Block data structured successfully. Sample data: {block_data[:2]}")  # Log first two items for brevity
-        except KeyError as e:
-            logging.error(f"KeyError in block data structure: {e}")
-            return
-        except Exception as e:
-            logging.error(f"Unknown error structuring block data: {e}")
-            return
+            logging.info("Structuring block data...")
+            try:
+                block_data = [
+                    json_structure({
+                        "height": block["height"],
+                        "size": float(block["size"]),
+                        "time": parse_timestamp(block["time"])
+                    })
+                    for block in data
+                ]
+                logging.info(f"Block data structured successfully. Sample data: {block_data[:2]}")  # Log first two items for brevity
+            except KeyError as e:
+                logging.error(f"KeyError in block data structure: {e}")
+                return
+            except Exception as e:
+                logging.error(f"Unknown error structuring block data: {e}")
+                return
 
-        # Infer lower and upper height from JSON file name
-        match = re.search(r"(\d+)_to_(\d+)", json_file_path)
-        if match:
-            lower_height = int(match.group(1))
-            upper_height = int(match.group(2))
-        logging.info(f"Inferred heights: lower_height={lower_height}, upper_height={upper_height}")
+            # Infer lower and upper height from JSON file name
+            match = re.search(r"(\d+)_to_(\d+)", json_file_path)
+            if match:
+                lower_height = int(match.group(1))
+                upper_height = int(match.group(2))
+            logging.info(f"Inferred heights: lower_height={lower_height}, upper_height={upper_height}")
 
-        # Ensure block_data is not empty before generating graphs and table
-        if block_data:
-            logging.info("Block data is not empty. Generating graphs and table.")
-            generate_graphs_and_table(block_data, output_image_file_base, lower_height, upper_height)
-        else:
-            logging.error("No block data found in the supplied JSON file.")
-        return
-    elif len(sys.argv) == 6 and not os.path.exists(json_file_path):
-        logging.error(f"JSON file {json_file_path} does not exist. Exiting.")
-        return        
+            # Ensure block_data is not empty before generating graphs and table
+            if block_data:
+                logging.info("Block data is not empty. Generating graphs and table.")
+                generate_graphs_and_table(block_data, output_image_file_base, lower_height, upper_height)
+            else:
+                logging.error("No block data found in the supplied JSON file.")
+            return
+        elif not os.path.exists(json_file_path):
+            logging.error(f"JSON file {json_file_path} does not exist. Exiting.")
+            return
 
     # The rest of the code will only execute if the JSON file does not exist
     # Check endpoint availability
