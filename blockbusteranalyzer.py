@@ -508,7 +508,7 @@ async def read_json_file(json_file_path):
     try:
         data = json.loads(raw_data)
         logging.info(f"JSON data parsed successfully, total records: {len(data)}")
-        return data
+        return await data
     except json.JSONDecodeError as e:
         logging.error(f"JSONDecodeError: {e}")
     except Exception as e:
