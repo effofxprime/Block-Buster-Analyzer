@@ -491,6 +491,31 @@ def json_structure(block_info):
     }
 
 # LOCKED
+async def read_json_file(json_file_path):
+    logging.info("Attempting to open JSON file...")
+    try:
+        async with aiofiles.open(json_file_path, 'r') as f:
+            raw_data = await f.read()
+            logging.info(f"Read JSON data from file")
+    except FileNotFoundError as e:
+        logging.error(f"FileNotFoundError: {e}")
+        return None
+    except Exception as e:
+        logging.error(f"Error opening JSON file: {e}")
+        return None
+
+    logging.info("Attempting to parse JSON data...")
+    try:
+        data = json.loads(raw_data)
+        logging.info(f"JSON data parsed successfully, total records: {len(data)}")
+        return data
+    except json.JSONDecodeError as e:
+        logging.error(f"JSONDecodeError: {e}")
+    except Exception as e:
+        logging.error(f"Unknown error parsing JSON file: {e}")
+    return None
+
+# LOCKED
 async def main():
     global log_file, json_file_path
     global shutdown_event
@@ -531,60 +556,41 @@ async def main():
     if len(sys.argv) == 6 and os.path.exists(json_file_path):
         logging.info(f"JSON file specified: {json_file_path}")
         logging.info("Confirmed JSON file exists.")
+        data = await read_json_file(json_file_path)
+        if data is None:
+            return
+
+        logging.info("Structuring block data...")
         try:
-            # Open and read the JSON file asynchronously
-            logging.info("Attempting to open JSON file...")
-            async with aiofiles.open(json_file_path, 'r') as f:
-                raw_data = await f.read()
-                logging.info(f"Read JSON data from file")
-
-            logging.info("Attempting to parse JSON data...")
-            # Convert sizes to float and times to datetime
-            try:
-                data = json.loads(raw_data)
-                logging.info(f"JSON data parsed successfully, total records: {len(data)}")
-            except json.JSONDecodeError as e:
-                logging.error(f"JSONDecodeError processing JSON file: {e}")
-                return
-            except Exception as e:
-                logging.error(f"Unknown error parsing JSON file: {e}")
-                return
-
-            logging.info("Structuring block data...")
-            try:
-                block_data = [
-                    json_structure({
-                        "height": block["height"],
-                        "size": float(block["size"]),
-                        "time": parse_timestamp(block["time"])
-                    })
-                    for block in data
-                ]
-                logging.info(f"Block data structured successfully. Sample data: {block_data[:2]}")  # Log first two items for brevity
-            except KeyError as e:
-                logging.error(f"KeyError in block data structure: {e}")
-                return
-            except Exception as e:
-                logging.error(f"Unknown error structuring block data: {e}")
-                return
-
-            # Infer lower and upper height from JSON file name
-            match = re.search(r"(\d+)_to_(\d+)", json_file_path)
-            if match:
-                lower_height = int(match.group(1))
-                upper_height = int(match.group(2))
-            logging.info(f"Inferred heights: lower_height={lower_height}, upper_height={upper_height}")
-
-            # Ensure block_data is not empty before generating graphs and table
-            if block_data:
-                logging.info("Block data is not empty. Generating graphs and table.")
-                generate_graphs_and_table(block_data, output_image_file_base, lower_height, upper_height)
-            else:
-                logging.error("No block data found in the supplied JSON file.")
-        except FileNotFoundError as e:
-            logging.error(f"FileNotFoundError processing JSON file: {e}")
+            block_data = [
+                json_structure({
+                    "height": block["height"],
+                    "size": float(block["size"]),
+                    "time": parse_timestamp(block["time"])
+                })
+                for block in data
+            ]
+            logging.info(f"Block data structured successfully. Sample data: {block_data[:2]}")  # Log first two items for brevity
+        except KeyError as e:
+            logging.error(f"KeyError in block data structure: {e}")
+            return
         except Exception as e:
-            logging.error(f"Unknown error processing JSON file: {e}")
+            logging.error(f"Unknown error structuring block data: {e}")
+            return
+
+        # Infer lower and upper height from JSON file name
+        match = re.search(r"(\d+)_to_(\d+)", json_file_path)
+        if match:
+            lower_height = int(match.group(1))
+            upper_height = int(match.group(2))
+        logging.info(f"Inferred heights: lower_height={lower_height}, upper_height={upper_height}")
+
+        # Ensure block_data is not empty before generating graphs and table
+        if block_data:
+            logging.info("Block data is not empty. Generating graphs and table.")
+            generate_graphs_and_table(block_data, output_image_file_base, lower_height, upper_height)
+        else:
+            logging.error("No block data found in the supplied JSON file.")
         return
     elif len(sys.argv) == 6 and not os.path.exists(json_file_path):
         logging.error(f"JSON file {json_file_path} does not exist. Exiting.")
