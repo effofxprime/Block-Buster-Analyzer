@@ -150,6 +150,7 @@ async def fetch_block_info_socket(session, endpoint_url, height):
     max_retries = 5
     while attempt < max_retries:
         try:
+            session = requests_unixsocket.Session()
             async with session.get(f"http+unix://{quote_plus(endpoint_url)}/block?height={height}", timeout=3) as response:
                 response.raise_for_status()
                 return await response.json()
@@ -464,13 +465,6 @@ def generate_graphs_and_table(block_data, output_image_file_base, lower_height, 
     generate_segmented_bar_chart(times, sizes, output_image_file_base)
 
 # LOCKED
-def save_data_incrementally(block_data, json_file_path):
-    with open(json_file_path, 'w') as f:
-        for block in block_data:
-            json.dump(block, f, default=default)
-            f.write('\n')
-
-# LOCKED
 def default(obj):
     if isinstance(obj, (datetime, date)):
         return obj.isoformat()
@@ -506,9 +500,6 @@ async def read_json_file(json_file_path):
         return None
     except Exception as e:
         logging.error(f"Error opening JSON file: {e}")
-        return None  # Ensure we return None in case of error
-    if not raw_data:
-        logging.error("File is empty.")
         return None
     
     logging.info("Attempting to parse JSON data...")
@@ -563,6 +554,9 @@ async def main():
     if len(sys.argv) == 6:
         logging.info(f"JSON file specified: {json_file_path}")
         if os.path.exists(json_file_path):
+            if os.path.getsize(json_file_path) == 0:
+                logging.error(f"JSON file {json_file_path} is empty. Exiting.")
+                return
             logging.info("Confirmed JSON file exists.")
             try:
                 data = await read_json_file(json_file_path)
