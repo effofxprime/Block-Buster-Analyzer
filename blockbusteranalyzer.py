@@ -107,6 +107,9 @@ async def log_handler(level, message, lower_height=None, upper_height=None):
         logging.getLogger().setLevel(logging.DEBUG)
         logging.info("Logging configured globally.")
         
+    if log_file is None:
+        raise RuntimeError("log_file is not initialized.")
+    
     log_message = f"{datetime.now(timezone.utc)} - {level.upper()} - {message}"
     if level.lower() == 'error':
         logging.error(message)
@@ -119,6 +122,7 @@ async def log_handler(level, message, lower_height=None, upper_height=None):
     async with aiofiles.open(log_file, 'a') as log:
         await log.write(log_message + '\n')
 
+# LOCKED
 def check_endpoint(endpoint_type, endpoint_url):
     try:
         if endpoint_type == "socket":
@@ -517,11 +521,6 @@ async def main():
     global shutdown_event
     shutdown_event = asyncio.Event()
 
-    # Set up signal handlers for graceful shutdown
-    loop = asyncio.get_event_loop()
-    loop.add_signal_handler(signal.SIGINT, signal_handler, signal.SIGTERM, None)
-    loop.add_signal_handler(signal.SIGTERM, signal_handler, signal.SIGTERM, None)
-    await log_handler('info', "Signal handlers configured.")
 
     # Validate the number of arguments
     if len(sys.argv) < 5 or len(sys.argv) > 6:
@@ -537,6 +536,16 @@ async def main():
     start_time = datetime.now(timezone.utc)
     file_timestamp = start_time.strftime('%Y%m%d_%H%M%S')
 
+    # Configure logging
+    log_file = f"error_log_{lower_height}_to_{upper_height}_{file_timestamp}.log"
+    await log_handler('info', "Configuring logging...", lower_height, upper_height)
+
+    # Set up signal handlers for graceful shutdown
+    loop = asyncio.get_event_loop()
+    loop.add_signal_handler(signal.SIGINT, signal_handler, signal.SIGTERM, None)
+    loop.add_signal_handler(signal.SIGTERM, signal_handler, signal.SIGTERM, None)
+    await log_handler('info', "Signal handlers configured.")
+    
     # Ensure the json_file_path follows the correct naming convention
     json_file_path = sys.argv[5] if len(sys.argv) == 6 else f"block_sizes_{lower_height}_to_{upper_height}_{file_timestamp}.json"
 
@@ -546,10 +555,6 @@ async def main():
 
     # Handle path for output image file base
     output_image_file_base = os.path.splitext(os.path.basename(json_file_path))[0]
-
-    # Configure logging
-    log_file = f"error_log_{lower_height}_to_{upper_height}_{file_timestamp}.log"
-    await log_handler('info', "Configuring logging...", lower_height, upper_height)
 
     # If a JSON file is specified and exists, skip fetching and directly process the JSON file
     if len(sys.argv) == 6:
