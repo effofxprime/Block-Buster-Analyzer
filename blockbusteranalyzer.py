@@ -35,6 +35,7 @@ import aiohttp
 import aiofiles
 import asyncio
 import time
+import warnings  # Added for capturing warnings
 
 # LOCKED
 # Set up logging configuration globally
@@ -105,6 +106,7 @@ async def log_handler(level, message, lower_height=None, upper_height=None):
         async_handler.setFormatter(formatter)
         logging.getLogger().handlers = [async_handler]
         logging.getLogger().setLevel(logging.DEBUG)
+        logging.captureWarnings(True)  # Capture warnings
         logging.info("Logging configured globally.")
         
     if log_file is None:
@@ -530,7 +532,6 @@ async def main():
     global log_file, json_file_path
     global shutdown_event
     shutdown_event = asyncio.Event()
-
 
     # Validate the number of arguments
     if len(sys.argv) < 5 or len(sys.argv) > 6:
