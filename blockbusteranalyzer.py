@@ -106,7 +106,10 @@ async def log_handler(level, message, lower_height=None, upper_height=None):
         async_handler.setFormatter(formatter)
         logging.getLogger().handlers = [async_handler]
         logging.getLogger().setLevel(logging.DEBUG)
-        logging.captureWarnings(True)  # Capture warnings
+        
+        # Configure warnings to be captured by the logging system
+        logging.captureWarnings(True)
+        warnings.simplefilter('always')
         logging.info("Logging configured globally.")
         
     if log_file is None:
