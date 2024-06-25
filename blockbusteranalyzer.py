@@ -278,11 +278,21 @@ def parse_timestamp(timestamp):
     try:
         if isinstance(timestamp, datetime):
             return timestamp
-        if '.' in timestamp:
+        if '.' in timestamp and timestamp.endswith('Z'):
             timestamp = timestamp.split('.')[0] + 'Z'
-        return datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%SZ")
-    except ValueError:
+        formats = ["%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S"]
+        for fmt in formats:
+            try:
+                return datetime.strptime(timestamp, fmt)
+            except ValueError:
+                continue
         raise ValueError(f"time data '{timestamp}' does not match any known format")
+    except ValueError as e:
+        asyncio.run(log_handler('error', f"ValueError parsing timestamp: {e}"))
+        return None
+    except Exception as e:
+        asyncio.run(log_handler('error', f"Unknown error parsing timestamp: {e}"))
+        return None
 
 # LOCKED
 async def process_block(height, endpoint_type, endpoint_url, semaphore):
