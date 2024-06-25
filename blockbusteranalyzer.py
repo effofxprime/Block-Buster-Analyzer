@@ -106,7 +106,7 @@ async def log_handler(level, message, lower_height=None, upper_height=None):
         async_handler.setFormatter(formatter)
         logging.getLogger().handlers = [async_handler]
         logging.getLogger().setLevel(logging.DEBUG)
-        
+
         # Configure warnings to be captured by the logging system
         logging.captureWarnings(True)
         warnings.simplefilter('always')
@@ -124,6 +124,7 @@ async def log_handler(level, message, lower_height=None, upper_height=None):
         logging.warning(message)
     elif level.lower() == 'debug':
         logging.debug(message)
+    
     async with aiofiles.open(log_file, 'a') as log:
         await log.write(log_message + '\n')
 
@@ -556,7 +557,6 @@ async def main():
     # Configure logging
     log_file = f"error_log_{lower_height}_to_{upper_height}_{file_timestamp}.log"
     await log_handler('info', "Configuring logging...", lower_height, upper_height)
-
     # Set up signal handlers for graceful shutdown
     loop = asyncio.get_event_loop()
     loop.add_signal_handler(signal.SIGINT, signal_handler, signal.SIGTERM, None)
