@@ -517,11 +517,13 @@ async def main():
     global shutdown_event
     shutdown_event = asyncio.Event()
 
+    # Set up signal handlers for graceful shutdown
     loop = asyncio.get_event_loop()
     loop.add_signal_handler(signal.SIGINT, signal_handler, signal.SIGTERM, None)
     loop.add_signal_handler(signal.SIGTERM, signal_handler, signal.SIGTERM, None)
     await log_handler('info', "Signal handlers configured.")
 
+    # Validate the number of arguments
     if len(sys.argv) < 5 or len(sys.argv) > 6:
         await log_handler('error', "Incorrect number of arguments.")
         print(f"Usage: {sys.argv[0]} <lower_height> <upper_height> <connection_type> <endpoint_url> [<json_file_path>]")
@@ -546,6 +548,7 @@ async def main():
     output_image_file_base = os.path.splitext(os.path.basename(json_file_path))[0]
 
     # Configure logging
+    log_file = f"error_log_{lower_height}_to_{upper_height}_{file_timestamp}.log"
     await log_handler('info', "Configuring logging...", lower_height, upper_height)
 
     # If a JSON file is specified and exists, skip fetching and directly process the JSON file
