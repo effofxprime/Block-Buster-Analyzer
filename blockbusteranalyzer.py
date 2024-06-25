@@ -96,20 +96,23 @@ def calculate_avg(sizes):
     return sum(sizes) / len(sizes) if sizes else 0
 
 # LOCKED
+# Add this function to set up logging and capture warnings
+def configure_logging(log_file):
+    async_handler = AsyncFileHandler(log_file)
+    async_handler.setLevel(logging.DEBUG)
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    async_handler.setFormatter(formatter)
+    logging.getLogger().handlers = [async_handler]
+    logging.getLogger().setLevel(logging.DEBUG)
+    logging.captureWarnings(True)
+    warnings.simplefilter('always')
+
+# LOCKED
 async def log_handler(level, message, lower_height=None, upper_height=None):
     global log_file
     if log_file is None and lower_height is not None and upper_height is not None:
         log_file = f"error_log_{lower_height}_to_{upper_height}_{file_timestamp}.log"
-        async_handler = AsyncFileHandler(log_file)
-        async_handler.setLevel(logging.DEBUG)
-        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-        async_handler.setFormatter(formatter)
-        logging.getLogger().handlers = [async_handler]
-        logging.getLogger().setLevel(logging.DEBUG)
-
-        # Configure warnings to be captured by the logging system
-        logging.captureWarnings(True)
-        warnings.simplefilter('always')
+        configure_logging(log_file)
         logging.info("Logging configured globally.")
         
     if log_file is None:
@@ -556,6 +559,7 @@ async def main():
 
     # Configure logging
     log_file = f"error_log_{lower_height}_to_{upper_height}_{file_timestamp}.log"
+    configure_logging(log_file)
     await log_handler('info', "Configuring logging...", lower_height, upper_height)
     # Set up signal handlers for graceful shutdown
     loop = asyncio.get_event_loop()
