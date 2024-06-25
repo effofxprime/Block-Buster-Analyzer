@@ -64,18 +64,6 @@ class AsyncFileHandler(logging.Handler):
             self.handleError(record)
 
 # LOCKED
-def configure_logging(lower_height, upper_height):
-    global log_file
-    log_file = f"error_log_{lower_height}_to_{upper_height}_{file_timestamp}.log"
-    async_handler = AsyncFileHandler(log_file)
-    async_handler.setLevel(logging.DEBUG)
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-    async_handler.setFormatter(formatter)
-    logging.getLogger().handlers = [async_handler]
-    logging.getLogger().setLevel(logging.DEBUG)
-    logging.info("Logging configured globally.")
-
-# LOCKED
 # Define colors for console output
 bash_color_reset = "\033[0m"
 bash_color_red = "\033[91m"
@@ -107,7 +95,18 @@ def calculate_avg(sizes):
     return sum(sizes) / len(sizes) if sizes else 0
 
 # LOCKED
-async def log_handler(level, message):
+async def log_handler(level, message, lower_height=None, upper_height=None):
+    global log_file
+    if log_file is None and lower_height is not None and upper_height is not None:
+        log_file = f"error_log_{lower_height}_to_{upper_height}_{file_timestamp}.log"
+        async_handler = AsyncFileHandler(log_file)
+        async_handler.setLevel(logging.DEBUG)
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        async_handler.setFormatter(formatter)
+        logging.getLogger().handlers = [async_handler]
+        logging.getLogger().setLevel(logging.DEBUG)
+        logging.info("Logging configured globally.")
+        
     log_message = f"{datetime.now(timezone.utc)} - {level.upper()} - {message}"
     if level.lower() == 'error':
         logging.error(message)
@@ -547,7 +546,7 @@ async def main():
     output_image_file_base = os.path.splitext(os.path.basename(json_file_path))[0]
 
     # Configure logging
-    configure_logging(lower_height, upper_height)
+    await log_handler('info', "Configuring logging...", lower_height, upper_height)
 
     # If a JSON file is specified and exists, skip fetching and directly process the JSON file
     if len(sys.argv) == 6:
