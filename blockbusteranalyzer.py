@@ -185,8 +185,9 @@ async def fetch_block_info_socket(session, endpoint_url, height):
     await log_handler('error', f"Max retries reached for block {height}. Skipping.")
     return None
 
-def get_progress_indicator(total, description):
-    asyncio.run(log_handler('info', f"Creating progress indicator for {description} with total: {total}"))
+# LOCKED
+async def get_progress_indicator(total, description):
+    await log_handler('info', f"Creating progress indicator for {description} with total: {total}")
     return tqdm_async(total=total, desc=description, unit="block",
                       bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}} [Blocks: {{n}}/{{total}}, Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate_fmt}}]{bash_color_reset}",
                       position=0, leave=True)
@@ -383,6 +384,7 @@ def generate_scatter_chart(times, sizes, colors, output_image_file_base, lower_h
     ax.xaxis.set_major_locator(MaxNLocator(nbins=10))
     ax.tick_params(axis='x', labelrotation=45, labelsize=32)
     ax.tick_params(axis='y', labelsize=32)
+    ax.xaxis.set_major_locator(MaxNLocator(prune='both', nbins=10))  # Add this line to limit the number of ticks
     legend_patches = [
         plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=py_color_green, markersize=10, label='< 1MB'),
         plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=py_color_yellow, markersize=10, label='1MB to 2MB'),
@@ -408,6 +410,7 @@ def generate_enhanced_scatter_chart(times, sizes, colors, output_image_file_base
     ax.xaxis.set_major_locator(MaxNLocator(nbins=10))
     ax.tick_params(axis='x', labelrotation=45, labelsize=32)
     ax.tick_params(axis='y', labelsize=32)
+    ax.xaxis.set_major_locator(MaxNLocator(prune='both', nbins=10))  # Add this line to limit the number of ticks
     legend_patches = [
         plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=py_color_green, markersize=10, label='< 1MB'),
         plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=py_color_yellow, markersize=10, label='1MB to 2MB'),
@@ -661,7 +664,7 @@ async def main():
     semaphore = asyncio.Semaphore(50)
 
     heights = range(lower_height, upper_height + 1)
-    tqdm_progress = get_progress_indicator(len(heights), "Fetching Blocks")
+    tqdm_progress = await get_progress_indicator(len(heights), "Fetching Blocks")
     async with aiofiles.open(json_file_path, 'w') as f:
         tasks = [process_block(height, connection_type, endpoint_url, semaphore) for height in heights]
         for future in tqdm_async(asyncio.as_completed(tasks), total=len(tasks)):
