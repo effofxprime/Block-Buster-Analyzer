@@ -60,7 +60,9 @@ class AsyncFileHandler(logging.Handler):
     def emit(self, record):
         try:
             msg = self.format(record)
-            self.loop.create_task(self.aio_write(msg))
+            # Check if the event loop is closed before creating the task
+            if not self.loop.is_closed():
+                self.loop.create_task(self.aio_write(msg))
         except Exception:
             self.handleError(record)
 
@@ -561,6 +563,7 @@ async def main():
     log_file = f"error_log_{lower_height}_to_{upper_height}_{file_timestamp}.log"
     configure_logging(log_file)
     await log_handler('info', "Configuring logging...", lower_height, upper_height)
+
     # Set up signal handlers for graceful shutdown
     loop = asyncio.get_event_loop()
     loop.add_signal_handler(signal.SIGINT, signal_handler, signal.SIGTERM, None)
