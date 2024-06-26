@@ -565,7 +565,7 @@ async def main():
     # Configure logging
     log_file = f"error_log_{lower_height}_to_{upper_height}_{file_timestamp}.log"
     await configure_logging()
-    await log_handler('info', "Configuring logging...", lower_height, upper_height)
+    await log_handler('info', "Logging module has been configured.")
 
     # Set up signal handlers for graceful shutdown
     loop = asyncio.get_event_loop()
