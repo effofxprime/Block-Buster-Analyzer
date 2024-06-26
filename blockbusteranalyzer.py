@@ -99,39 +99,41 @@ def calculate_avg(sizes):
 
 # LOCKED
 # Add this function to set up logging and capture warnings
-def configure_logging(log_file):
+async def configure_logging():
+    global log_file
+    if log_file:
+        async with aiofiles.open(log_file, 'a') as f:
+            await f.write("Logging configured globally.\n")
+    else:
+        raise RuntimeError("log_file is not initialized.")
+    
     async_handler = AsyncFileHandler(log_file)
     async_handler.setLevel(logging.DEBUG)
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
     async_handler.setFormatter(formatter)
     logging.getLogger().handlers = [async_handler]
-    logging.getLogger().setLevel(logging.DEBUG)
+    warnings.simplefilter('always')  # Ensure all warnings are caught
+    logging.basicConfig(level=logging.DEBUG)
     logging.captureWarnings(True)
-    warnings.simplefilter('always')
+    logging.getLogger().setLevel(logging.DEBUG)
+
 
 # LOCKED
-async def log_handler(level, message, lower_height=None, upper_height=None):
+async def log_handler(level, message):
     global log_file
-    if log_file is None and lower_height is not None and upper_height is not None:
-        log_file = f"error_log_{lower_height}_to_{upper_height}_{file_timestamp}.log"
-        configure_logging(log_file)
-        logging.info("Logging configured globally.")
         
     if log_file is None:
         raise RuntimeError("log_file is not initialized.")
     
     log_message = f"{datetime.now(timezone.utc)} - {level.upper()} - {message}"
     if level.lower() == 'error':
-        logging.error(message)
+        logging.error(log_message)
     elif level.lower() == 'info':
-        logging.info(message)
+        logging.info(log_message)
     elif level.lower() == 'warning':
-        logging.warning(message)
+        logging.warning(log_message)
     elif level.lower() == 'debug':
-        logging.debug(message)
-    
-    async with aiofiles.open(log_file, 'a') as log:
-        await log.write(log_message + '\n')
+        logging.debug(log_message)
 
 # LOCKED
 def check_endpoint(endpoint_type, endpoint_url):
@@ -205,15 +207,16 @@ async def get_progress_indicator(total, description):
 async def fetch_all_blocks(endpoint_type, endpoint_url, heights):
     results = []
     failed_heights = []
+    semaphore = asyncio.Semaphore(50)
 
-    tqdm_progress = get_progress_indicator(len(heights), "Fetching Blocks")
+    tqdm_progress = await get_progress_indicator(len(heights), "Fetching Blocks")
 
     await log_handler('info', "Starting block fetch process.")
     async with aiohttp.ClientSession() as session:
         if endpoint_type == "tcp":
-            tasks = [fetch_block_info_aiohttp(session, endpoint_url, height) for height in heights]
+            tasks = [await fetch_block_info_aiohttp(session, endpoint_url, height) for height in heights]
         else:
-            tasks = [fetch_block_info_socket(session, endpoint_url, height) for height in heights]
+            tasks = [await fetch_block_info_socket(session, endpoint_url, height) for height in heights]
 
         for task in tqdm_async(asyncio.as_completed(tasks), total=len(tasks)):
             result = await task
@@ -240,9 +243,9 @@ async def retry_failed_blocks(endpoint_type, endpoint_url, failed_heights):
 
     async with aiohttp.ClientSession() as session:
         if endpoint_type == "tcp":
-            tasks = [fetch_block_info_aiohttp(session, endpoint_url, failed_height) for failed_height in failed_heights]
+            tasks = [await fetch_block_info_aiohttp(session, endpoint_url, failed_height) for failed_height in failed_heights]
         else:
-            tasks = [fetch_block_info_socket(session, endpoint_url, failed_height) for failed_height in failed_heights]
+            tasks = [await fetch_block_info_socket(session, endpoint_url, failed_height) for failed_height in failed_heights]
 
         for task in tqdm_async(asyncio.as_completed(tasks), total=len(tasks), desc="Retrying Blocks", unit="block", bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}} [Blocks: {{n}}/{{total}}, Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate_fmt}}]{bash_color_reset}"):
             result = await task
@@ -561,7 +564,7 @@ async def main():
 
     # Configure logging
     log_file = f"error_log_{lower_height}_to_{upper_height}_{file_timestamp}.log"
-    configure_logging(log_file)
+    await configure_logging()
     await log_handler('info', "Configuring logging...", lower_height, upper_height)
 
     # Set up signal handlers for graceful shutdown
@@ -676,7 +679,7 @@ async def main():
     heights = range(lower_height, upper_height + 1)
     tqdm_progress = await get_progress_indicator(len(heights), "Fetching Blocks")
     async with aiofiles.open(json_file_path, 'w') as f:
-        tasks = [process_block(height, connection_type, endpoint_url, semaphore) for height in heights]
+        tasks = [await process_block(height, connection_type, endpoint_url, semaphore) for height in heights]
         for future in tqdm_async(asyncio.as_completed(tasks), total=len(tasks)):
             if shutdown_event.is_set():
                 await log_handler('info', "Shutdown event detected. Exiting.")
