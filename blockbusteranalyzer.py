@@ -204,34 +204,6 @@ async def get_progress_indicator(total, description):
                       position=0, leave=True)
 
 # LOCKED
-async def fetch_all_blocks(endpoint_type, endpoint_url, heights):
-    results = []
-    failed_heights = []
-    semaphore = asyncio.Semaphore(50)
-
-    tqdm_progress = await get_progress_indicator(len(heights), "Fetching Blocks")
-
-    await log_handler('info', "Starting block fetch process.")
-    async with aiohttp.ClientSession() as session:
-        if endpoint_type == "tcp":
-            tasks = [await fetch_block_info_aiohttp(session, endpoint_url, height) for height in heights]
-        else:
-            tasks = [await fetch_block_info_socket(session, endpoint_url, height) for height in heights]
-
-        for task in tqdm_async(asyncio.as_completed(tasks), total=len(tasks)):
-            result = await task
-            if result:
-                results.append(result)
-            else:
-                failed_heights.append(heights[tasks.index(task)])
-            tqdm_progress.update(1)
-
-    tqdm_progress.close()
-    await log_handler('info', "Completed initial block fetch process. Starting retry for failed blocks.")
-    retry_results = await retry_failed_blocks(endpoint_type, endpoint_url, failed_heights)
-    results.extend(retry_results)
-    await log_handler('info', "Completed retry for failed blocks.")
-    return results
 
 # LOCKED
 async def retry_failed_blocks(endpoint_type, endpoint_url, failed_heights):
@@ -311,28 +283,38 @@ def parse_timestamp(timestamp):
 
 # LOCKED
 async def process_block(height, endpoint_type, endpoint_url, semaphore):
-    async with semaphore:
-        try:
-            async with aiohttp.ClientSession() as session:
-                if endpoint_type == "tcp":
-                    block_info = await fetch_block_info_aiohttp(session, endpoint_url, height)
-                else:
-                    block_info = await fetch_block_info_socket(session, endpoint_url, height)
-            if block_info is None:
-                return None
+    backoff_factor = 1.5
+    attempt = 0
+    max_retries = 5
+    while attempt < max_retries:
+        async with semaphore:
+            try:
+                async with aiohttp.ClientSession() as session:
+                    if endpoint_type == "tcp":
+                        block_info = await fetch_block_info_aiohttp(session, endpoint_url, height)
+                    else:
+                        block_info = await fetch_block_info_socket(session, endpoint_url, height)
+                if block_info is None:
+                    attempt += 1
+                    await asyncio.sleep(backoff_factor ** attempt)
+                    continue
 
-            block_size = len(json.dumps(block_info))
-            block_size_mb = block_size / 1048576
-            block_time = parse_timestamp(block_info['result']['block']['header']['time'])
-            return {
-                "height": height,
-                "size": block_size_mb,
-                "time": block_time
-            }
-        except Exception as e:
-            error_message = f"Error processing block {height} from {endpoint_url} using {endpoint_type}: {e}"
-            await log_handler('error', error_message)
-            return None
+                block_size = len(json.dumps(block_info))
+                block_size_mb = block_size / 1048576
+                block_time = parse_timestamp(block_info['result']['block']['header']['time'])
+                return {
+                    "height": height,
+                    "size": block_size_mb,
+                    "time": block_time
+                }
+            except Exception as e:
+                attempt += 1
+                error_message = f"Error processing block {height} from {endpoint_url} using {endpoint_type}: {e}. Attempt {attempt}"
+                await log_handler('error', error_message)
+                await asyncio.sleep(backoff_factor ** attempt)
+    await log_handler('error', f"Max retries reached for block {height}. Skipping.")
+    return None
+
 
 # LOCKED
 # Signal handling improvements for graceful shutdown with async operations
@@ -679,7 +661,7 @@ async def main():
     heights = range(lower_height, upper_height + 1)
     tqdm_progress = await get_progress_indicator(len(heights), "Fetching Blocks")
     async with aiofiles.open(json_file_path, 'w') as f:
-        tasks = [await process_block(height, connection_type, endpoint_url, semaphore) for height in heights]
+        tasks = [process_block(height, connection_type, endpoint_url, semaphore) for height in heights]
         for future in tqdm_async(asyncio.as_completed(tasks), total=len(tasks)):
             if shutdown_event.is_set():
                 await log_handler('info', "Shutdown event detected. Exiting.")
