@@ -82,7 +82,7 @@ The script will output the block sizes in JSON format and generate various graph
 
 ### Console Output Example
 
-![Console Table](console-table.png)
+![Console Table](images/console-table.png)
 
 ### Generated Graphs
 
