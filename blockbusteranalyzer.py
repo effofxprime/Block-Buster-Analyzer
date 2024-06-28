@@ -32,6 +32,7 @@ from urllib.parse import quote_plus
 from tqdm.asyncio import tqdm as tqdm_async
 import logging
 import aiohttp
+from aiohttp.connector import UnixConnector
 import aiofiles
 import asyncio
 import time
@@ -160,12 +161,14 @@ async def fetch_block_info_aiohttp(session, endpoint_url, height):
         return None
 
 # LOCKED
-async def fetch_block_info_socket(session, endpoint_url, height):
+async def fetch_block_info_socket(endpoint_url, height):
     try:
-        session = requests_unixsocket.Session()
-        async with session.get(f"http+unix://{quote_plus(endpoint_url)}/block?height={height}") as response:
-            response.raise_for_status()
-            return await response.json()
+        # Create a UnixConnector with the provided socket path
+        connector = UnixConnector(path=endpoint_url)
+        async with aiohttp.ClientSession(connector=connector) as session:
+            async with session.get(f"http://localhost/block?height={height}") as response:
+                response.raise_for_status()
+                return await response.json()
     except Exception as e:
         await log_handler('error', f"Error fetching block {height} from {endpoint_url}: {e}")
         return None
@@ -269,10 +272,31 @@ async def process_block(height, endpoint_type, endpoint_url, semaphore):
     return None
 
 # LOCKED
-async def retry_failed_blocks(failed_heights, connection_type, endpoint_url, semaphore, tqdm_progress):
+async def retry_failed_blocks(failed_heights, connection_type, endpoint_url, semaphore, tqdm_progress, lower_height, upper_height):
     retries = 0
     max_retries = 5
     backoff_factor = 1.5
+
+    # Check JSON file for missing heights before retrying
+    await log_handler('info', "Checking JSON file for missing heights before retrying.")
+    existing_heights = set()
+    async with semaphore, aiofiles.open(json_file_path, 'r') as f:
+        raw_data = await f.read()
+        data = json.loads(raw_data)
+        existing_heights.update(block["height"] for block in data)
+    
+    missing_heights = [height for height in range(lower_height, upper_height + 1) if height not in existing_heights]
+
+    if missing_heights:
+        await log_handler('warning', f"Missing blocks detected: {missing_heights}. Adding to failed heights for retry.")
+        failed_heights.extend(height for height in missing_heights if height not in failed_heights)
+    else:
+        await log_handler('info', "No missing blocks detected in the JSON file.")
+
+    if not failed_heights:
+        await log_handler('info', "No failed heights to retry. Exiting retry process.")
+        return
+
     while failed_heights and retries < max_retries:
         retries += 1
         await log_handler('info', f"Retrying {len(failed_heights)} failed blocks. Attempt {retries}")
@@ -653,9 +677,9 @@ async def main():
                     await f.write(json.dumps(block, default=default))
                     first_block = False
                 else:
-                    failed_heights.append(height)
+                    failed_heights.append(result["height"])
             except Exception as e:
-                failed_heights.append(height)
+                failed_heights.append(result["height"])
                 error_message = f"Error processing future result: {e}"
                 await log_handler('error', error_message)
 
@@ -665,8 +689,7 @@ async def main():
     # Retry fetching failed blocks
     # Check if there are failed heights before retrying
     if failed_heights:
-        await retry_failed_blocks(failed_heights, connection_type, endpoint_url, semaphore, tqdm_progress)
-
+        await retry_failed_blocks(failed_heights, connection_type, endpoint_url, semaphore, tqdm_progress, lower_height, upper_height)
 
     tqdm_progress.close()
     print("\n")
