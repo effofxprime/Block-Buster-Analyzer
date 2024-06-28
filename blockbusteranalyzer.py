@@ -626,7 +626,7 @@ async def main():
             # Ensure block_data is not empty before generating graphs and table
             if block_data:
                 await log_handler('info', "Block data is not empty. Generating graphs and table.")
-                generate_graphs_and_table(block_data, output_image_file_base, lower_height, upper_height)
+                await generate_graphs_and_table(block_data, output_image_file_base, lower_height, upper_height)
             else:
                 await log_handler('error', "No block data found in the supplied JSON file.")
             return
