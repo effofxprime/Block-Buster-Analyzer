@@ -478,10 +478,10 @@ def json_structure(block_info):
     }
 
 # LOCKED
-async def read_json_file(json_file_path):
+async def read_json_file(json_file_path, semaphore):
     await log_handler('info', "Attempting to open JSON file...")
     try:
-        async with aiofiles.open(json_file_path, 'r') as f:
+        async with semaphore, aiofiles.open(json_file_path, 'r') as f:
             raw_data = await f.read()
             await log_handler('info', "Read JSON data from file")
     except FileNotFoundError as e:
@@ -548,9 +548,10 @@ async def main():
         await log_handler('info', f"JSON file specified: {json_file_path}")
         if os.path.exists(json_file_path) and os.path.getsize(json_file_path) > 0:
             await log_handler('info', "Confirmed JSON file exists and is not empty.")
+            semaphore = asyncio.Semaphore(50)
             try:
                 await log_handler('info', "About to read JSON file...")
-                data = await read_json_file(json_file_path)
+                data = await read_json_file(json_file_path, semaphore)
                 await log_handler('info', f"Read JSON file successfully. Sample data: {data[:2]}")
             except Exception as e:
                 await log_handler('error', f"Error reading JSON file: {e}")
@@ -635,6 +636,7 @@ async def main():
     print(f"{bash_color_dark_grey}\n{'='*40}\n{bash_color_reset}")
 
     semaphore = asyncio.Semaphore(50)
+    failed_heights = []
 
     heights = range(lower_height, upper_height + 1)
     tqdm_progress = await get_progress_indicator(len(heights), "Fetching Blocks")
@@ -651,11 +653,32 @@ async def main():
                     block = json_structure({"height": result["height"], "size": result["size"], "time": result["time"]})
                     block_data.append(block)
                     await f.write(json.dumps(block, default=default) + '\n')
+                else:
+                    failed_heights.append(height)
             except Exception as e:
                 error_message = f"Error processing future result: {e}"
                 await log_handler('error', error_message)
 
             tqdm_progress.update(1)
+
+    # Retry fetching failed blocks
+    if failed_heights:
+        await log_handler('info', f"Retrying {len(failed_heights)} failed blocks...")
+        retry_tasks = [process_block(height, connection_type, endpoint_url, semaphore) for height in failed_heights]
+        for future in asyncio.as_completed(retry_tasks):
+            if shutdown_event.is_set():
+                await log_handler('info', "Shutdown event detected. Exiting.")
+                print(f"{bash_color_red}Shutdown event detected. Exiting...{bash_color_reset}")
+                break
+            try:
+                result = await future
+                if result:
+                    block = json_structure({"height": result["height"], "size": result["size"], "time": result["time"]})
+                    block_data.append(block)
+                    await f.write(json.dumps(block, default=default) + '\n')
+            except Exception as e:
+                error_message = f"Error processing retry result: {e}"
+                await log_handler('error', error_message)
 
     tqdm_progress.close()
     print("\n")
