@@ -82,11 +82,13 @@ The script will output the block sizes in JSON format and generate various graph
 
 ### Console Output Example
 
-*(Add screenshot of console output here)*
+![Console Table](console-table.png)
 
 ### Generated Graphs
 
-*(Add screenshots of the generated graphs here)*
+![Scatter Chart](images/block_sizes_5000000_to_5001000_20240628_190503_scatter_chart.png)
+![Scatter Chart](images/block_sizes_5000000_to_5001000_20240628_190503_enhanced_scatter_chart.png)
+![Scatter Chart](images/block_sizes_5000000_to_5001000_20240628_190503_segmented_bar_chart.png)
 
 ## Contributing
 
