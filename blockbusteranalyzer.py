@@ -467,16 +467,6 @@ def default(obj):
     raise TypeError("Type not serializable")
 
 # LOCKED
-async def save_data_incrementally_async(block_data, json_file_path):
-    async with aiofiles.open(json_file_path, 'w') as f:
-        await f.write('[')
-        for i, block in enumerate(block_data):
-            if i > 0:
-                await f.write(', ')
-            await f.write(json.dumps(json_structure(block), default=default))
-        await f.write(']')
-
-# LOCKED
 def json_structure(block_info):
     return {
         "height": block_info["height"],
@@ -637,9 +627,6 @@ async def main():
     await log_handler('info', "Fetching block information. This may take a while for large ranges. Please wait.")
     print(f"{bash_color_light_blue}\nFetching block information. This may take a while for large ranges. Please wait...{bash_color_reset}")
 
-    start_script_time = time.time()
-    total_blocks = upper_height - lower_height + 1
-
     print(f"{bash_color_dark_grey}\n{'='*40}\n{bash_color_reset}")
 
     semaphore = asyncio.Semaphore(50)
@@ -676,7 +663,10 @@ async def main():
         await f.write(']')  # End JSON array
 
     # Retry fetching failed blocks
-    await retry_failed_blocks(failed_heights, connection_type, endpoint_url, semaphore)
+    # Check if there are failed heights before retrying
+    if failed_heights:
+        await retry_failed_blocks(failed_heights, connection_type, endpoint_url, semaphore, tqdm_progress)
+
 
     tqdm_progress.close()
     print("\n")
