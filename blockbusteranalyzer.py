@@ -380,8 +380,7 @@ def categorize_block(block, categories):
 # Chart generation functions
 async def generate_scatter_chart(times, sizes, colors, output_image_file_base, lower_height, upper_height):
     loop = asyncio.get_running_loop()
-    with concurrent.futures.ThreadPoolExecutor() as pool:
-        await loop.run_in_executor(pool, _generate_scatter_chart_sync, times, sizes, colors, output_image_file_base, lower_height, upper_height)
+    await loop.run_in_executor(None, _generate_scatter_chart_sync, times, sizes, colors, output_image_file_base, lower_height, upper_height)
 
 def _generate_scatter_chart_sync(times, sizes, colors, output_image_file_base, lower_height, upper_height):
     print(f"{bash_color_light_blue}Generating scatter chart...{bash_color_reset}")
@@ -412,8 +411,7 @@ def _generate_scatter_chart_sync(times, sizes, colors, output_image_file_base, l
 
 async def generate_enhanced_scatter_chart(times, sizes, colors, output_image_file_base, lower_height, upper_height):
     loop = asyncio.get_running_loop()
-    with concurrent.futures.ThreadPoolExecutor() as pool:
-        await loop.run_in_executor(pool, _generate_enhanced_scatter_chart_sync, times, sizes, colors, output_image_file_base, lower_height, upper_height)
+    await loop.run_in_executor(None, _generate_enhanced_scatter_chart_sync, times, sizes, colors, output_image_file_base, lower_height, upper_height)
 
 def _generate_enhanced_scatter_chart_sync(times, sizes, colors, output_image_file_base, lower_height, upper_height):
     print(f"{bash_color_light_blue}Generating enhanced scatter chart...{bash_color_reset}")
@@ -444,8 +442,7 @@ def _generate_enhanced_scatter_chart_sync(times, sizes, colors, output_image_fil
 
 async def generate_segmented_bar_chart(times, sizes, output_image_file_base):
     loop = asyncio.get_running_loop()
-    with concurrent.futures.ThreadPoolExecutor() as pool:
-        await loop.run_in_executor(pool, _generate_segmented_bar_chart_sync, times, sizes, output_image_file_base)
+    await loop.run_in_executor(None, _generate_segmented_bar_chart_sync, times, sizes, output_image_file_base)
 
 def _generate_segmented_bar_chart_sync(times, sizes, output_image_file_base):
     print(f"{bash_color_light_blue}Generating segmented bar chart...{bash_color_reset}")
