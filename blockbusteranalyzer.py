@@ -640,7 +640,7 @@ async def main():
     tqdm_progress = await get_progress_indicator(len(heights), "Fetching Blocks")
     async with aiofiles.open(json_file_path, 'w') as f:
         tasks = [process_block(height, connection_type, endpoint_url, semaphore) for height in heights]
-        for future in tqdm_async(asyncio.as_completed(tasks), total=len(tasks)):
+        for future in asyncio.as_completed(tasks):
             if shutdown_event.is_set():
                 await log_handler('info', "Shutdown event detected. Exiting.")
                 print(f"{bash_color_red}Shutdown event detected. Exiting...{bash_color_reset}")
