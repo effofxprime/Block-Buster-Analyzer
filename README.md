@@ -9,9 +9,10 @@ BlockBusterAnalyzer is a tool to monitor and analyze the sizes of blocks in a bl
 - Supports both Unix sockets and TCP endpoints
 - Generates a JSON report with the results
 - Provides progress updates during execution, including estimated time left and total duration
-- Uses multithreading to improve performance for large block ranges
+- Uses asyncio for asynchronous operations to improve performance for large block ranges
 - Pretty console output with colors and table formatting
 - Plots various graphs of block size over time
+- Graceful shutdown on interrupt signals
 
 ## Dependencies
 
@@ -25,6 +26,8 @@ BlockBusterAnalyzer is a tool to monitor and analyze the sizes of blocks in a bl
 - `pandas`
 - `seaborn`
 - `numpy`
+- `aiohttp`
+- `aiofiles`
 - `concurrent.futures` (standard library, no extra installation required)
 
 ## Installation
@@ -36,7 +39,7 @@ BlockBusterAnalyzer is a tool to monitor and analyze the sizes of blocks in a bl
 1. **Install Python dependencies**
 
     ```sh
-    pip install requests requests-unixsocket tqdm tabulate matplotlib pandas seaborn numpy
+    pip install requests requests-unixsocket tqdm tabulate matplotlib pandas seaborn numpy aiohttp aiofiles
     ```
 
 2. **Create a virtual environment (optional but recommended)**
@@ -52,7 +55,7 @@ BlockBusterAnalyzer is a tool to monitor and analyze the sizes of blocks in a bl
 
     ```sh
     sudo apt-get update
-    sudo apt-get install python3-requests python3-requests-unixsocket python3-tqdm python3-tabulate python3-matplotlib python3-pandas python3-seaborn python3-numpy
+    sudo apt-get install python3-requests python3-requests-unixsocket python3-tqdm python3-tabulate python3-matplotlib python3-pandas python3-seaborn python3-numpy python3-aiohttp python3-aiofiles
     ```
 
 ## Usage
