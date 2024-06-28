@@ -161,14 +161,11 @@ async def fetch_block_info_aiohttp(session, endpoint_url, height):
         return None
 
 # LOCKED
-async def fetch_block_info_socket(endpoint_url, height):
+async def fetch_block_info_socket(session, endpoint_url, height):
     try:
-        # Create a UnixConnector with the provided socket path
-        connector = UnixConnector(path=endpoint_url)
-        async with aiohttp.ClientSession(connector=connector) as session:
-            async with session.get(f"http://localhost/block?height={height}") as response:
-                response.raise_for_status()
-                return await response.json()
+        async with session.get(f"http://localhost/block?height={height}") as response:
+            response.raise_for_status()
+            return await response.json()
     except Exception as e:
         await log_handler('error', f"Error fetching block {height} from {endpoint_url}: {e}")
         return None
@@ -244,10 +241,12 @@ async def process_block(height, endpoint_type, endpoint_url, semaphore):
     while attempt < max_retries:
         async with semaphore:
             try:
-                async with aiohttp.ClientSession() as session:
-                    if endpoint_type == "tcp":
+                if endpoint_type == "tcp":
+                    async with aiohttp.ClientSession() as session:
                         block_info = await fetch_block_info_aiohttp(session, endpoint_url, height)
-                    else:
+                else:
+                    connector = UnixConnector(path=endpoint_url)
+                    async with aiohttp.ClientSession(connector=connector) as session:
                         block_info = await fetch_block_info_socket(session, endpoint_url, height)
 
                 if block_info is None:
