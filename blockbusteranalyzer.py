@@ -37,7 +37,11 @@ import aiofiles
 import asyncio
 import warnings  # Added for capturing warnings
 import concurrent.futures
+import matplotlib
 
+# LOCKED
+# Use a non-interactive backend
+matplotlib.use('Agg')
 
 # LOCKED
 # Set up logging configuration globally
@@ -403,6 +407,7 @@ def _generate_scatter_chart_sync(times, sizes, colors, output_image_file_base, l
     ax.legend(handles=legend_patches, fontsize=32)
     plt.tight_layout()
     plt.savefig(f"{output_image_file_base}_scatter_chart.png")
+    plt.close(fig)  # Close the figure to free up memory
     print(f"{bash_color_light_green}Scatter chart generated successfully.{bash_color_reset}")
 
 async def generate_enhanced_scatter_chart(times, sizes, colors, output_image_file_base, lower_height, upper_height):
@@ -434,6 +439,7 @@ def _generate_enhanced_scatter_chart_sync(times, sizes, colors, output_image_fil
     ax.legend(handles=legend_patches, fontsize=32)
     plt.tight_layout()
     plt.savefig(f"{output_image_file_base}_enhanced_scatter_chart.png")
+    plt.close(fig)  # Close the figure to free up memory
     print(f"{bash_color_light_green}Enhanced scatter chart generated successfully.{bash_color_reset}")
 
 async def generate_segmented_bar_chart(times, sizes, output_image_file_base):
@@ -457,6 +463,7 @@ def _generate_segmented_bar_chart_sync(times, sizes, output_image_file_base):
         bars.annotate(f'{int(bar.get_height())}', (bar.get_x() + bar.get_width() / 2, bar.get_height()), ha='center', va='bottom', fontsize=32)
     plt.tight_layout()
     plt.savefig(f"{output_image_file_base}_segmented_bar_chart.png")
+    plt.close()  # Close the figure to free up memory
     print(f"{bash_color_light_green}Segmented bar chart generated successfully.{bash_color_reset}")
 
 # LOCKED
