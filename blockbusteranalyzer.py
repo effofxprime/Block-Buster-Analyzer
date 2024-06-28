@@ -201,29 +201,7 @@ async def get_progress_indicator(total, description):
     await log_handler('info', f"Creating progress indicator for {description} with total: {total}")
     return tqdm_async(total=total, desc=description, unit="block",
                       bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}} [Blocks: {{n}}/{{total}}, Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate_fmt}}]{bash_color_reset}",
-                      position=0, leave=True)
-
-# LOCKED
-
-# LOCKED
-async def retry_failed_blocks(endpoint_type, endpoint_url, failed_heights):
-    results = []
-    if not failed_heights:
-        return results
-
-    await log_handler('info', f"Retrying {len(failed_heights)} failed blocks...")
-
-    async with aiohttp.ClientSession() as session:
-        if endpoint_type == "tcp":
-            tasks = [await fetch_block_info_aiohttp(session, endpoint_url, failed_height) for failed_height in failed_heights]
-        else:
-            tasks = [await fetch_block_info_socket(session, endpoint_url, failed_height) for failed_height in failed_heights]
-
-        for task in tqdm_async(asyncio.as_completed(tasks), total=len(tasks), desc="Retrying Blocks", unit="block", bar_format=f"{bash_color_light_blue}{{l_bar}}{{bar}} [Blocks: {{n}}/{{total}}, Elapsed: {{elapsed}}, Remaining: {{remaining}}, Speed: {{rate_fmt}}]{bash_color_reset}"):
-            result = await task
-            if result:
-                results.append(result)
-    return results
+                      position=0, leave=False)
 
 # LOCKED
 def find_lowest_height(endpoint_type, endpoint_url):
