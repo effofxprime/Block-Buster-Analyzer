@@ -397,6 +397,7 @@ def generate_scatter_chart(times, sizes, colors, output_image_file_base, lower_h
     ax.legend(handles=legend_patches, fontsize=32)
     plt.tight_layout()
     plt.savefig(f"{output_image_file_base}_scatter_chart.png")
+    plt.close(fig)
     print(f"{bash_color_light_green}Scatter chart generated successfully.{bash_color_reset}")
 
 def generate_enhanced_scatter_chart(times, sizes, colors, output_image_file_base, lower_height, upper_height):
@@ -423,6 +424,7 @@ def generate_enhanced_scatter_chart(times, sizes, colors, output_image_file_base
     ax.legend(handles=legend_patches, fontsize=32)
     plt.tight_layout()
     plt.savefig(f"{output_image_file_base}_enhanced_scatter_chart.png")
+    plt.close(fig)
     print(f"{bash_color_light_green}Enhanced scatter chart generated successfully.{bash_color_reset}")
 
 def generate_segmented_bar_chart(times, sizes, output_image_file_base):
@@ -441,6 +443,7 @@ def generate_segmented_bar_chart(times, sizes, output_image_file_base):
         bars.annotate(f'{int(bar.get_height())}', (bar.get_x() + bar.get_width() / 2, bar.get_height()), ha='center', va='bottom', fontsize=32)
     plt.tight_layout()
     plt.savefig(f"{output_image_file_base}_segmented_bar_chart.png")
+    plt.close()
     print(f"{bash_color_light_green}Segmented bar chart generated successfully.{bash_color_reset}")
 
 # LOCKED
