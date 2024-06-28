@@ -35,8 +35,9 @@ import aiohttp
 from aiohttp.connector import UnixConnector
 import aiofiles
 import asyncio
-import time
 import warnings  # Added for capturing warnings
+import concurrent.futures
+
 
 # LOCKED
 # Set up logging configuration globally
@@ -373,7 +374,12 @@ def categorize_block(block, categories):
 
 # LOCKED - All chart functions are locked
 # Chart generation functions
-def generate_scatter_chart(times, sizes, colors, output_image_file_base, lower_height, upper_height):
+async def generate_scatter_chart(times, sizes, colors, output_image_file_base, lower_height, upper_height):
+    loop = asyncio.get_running_loop()
+    with concurrent.futures.ThreadPoolExecutor() as pool:
+        await loop.run_in_executor(pool, _generate_scatter_chart_sync, times, sizes, colors, output_image_file_base, lower_height, upper_height)
+
+def _generate_scatter_chart_sync(times, sizes, colors, output_image_file_base, lower_height, upper_height):
     print(f"{bash_color_light_blue}Generating scatter chart...{bash_color_reset}")
     fig, ax = plt.subplots(figsize=(38, 20))
     scatter = ax.scatter(times, sizes, c=colors, s=30)
@@ -399,7 +405,12 @@ def generate_scatter_chart(times, sizes, colors, output_image_file_base, lower_h
     plt.savefig(f"{output_image_file_base}_scatter_chart.png")
     print(f"{bash_color_light_green}Scatter chart generated successfully.{bash_color_reset}")
 
-def generate_enhanced_scatter_chart(times, sizes, colors, output_image_file_base, lower_height, upper_height):
+async def generate_enhanced_scatter_chart(times, sizes, colors, output_image_file_base, lower_height, upper_height):
+    loop = asyncio.get_running_loop()
+    with concurrent.futures.ThreadPoolExecutor() as pool:
+        await loop.run_in_executor(pool, _generate_enhanced_scatter_chart_sync, times, sizes, colors, output_image_file_base, lower_height, upper_height)
+
+def _generate_enhanced_scatter_chart_sync(times, sizes, colors, output_image_file_base, lower_height, upper_height):
     print(f"{bash_color_light_blue}Generating enhanced scatter chart...{bash_color_reset}")
     fig, ax = plt.subplots(figsize=(38, 20))
     scatter = ax.scatter(times, sizes, c=colors, s=30, alpha=0.6, edgecolors='w', linewidth=0.5)
@@ -425,7 +436,12 @@ def generate_enhanced_scatter_chart(times, sizes, colors, output_image_file_base
     plt.savefig(f"{output_image_file_base}_enhanced_scatter_chart.png")
     print(f"{bash_color_light_green}Enhanced scatter chart generated successfully.{bash_color_reset}")
 
-def generate_segmented_bar_chart(times, sizes, output_image_file_base):
+async def generate_segmented_bar_chart(times, sizes, output_image_file_base):
+    loop = asyncio.get_running_loop()
+    with concurrent.futures.ThreadPoolExecutor() as pool:
+        await loop.run_in_executor(pool, _generate_segmented_bar_chart_sync, times, sizes, output_image_file_base)
+
+def _generate_segmented_bar_chart_sync(times, sizes, output_image_file_base):
     print(f"{bash_color_light_blue}Generating segmented bar chart...{bash_color_reset}")
     data = pd.DataFrame({"times": times, "sizes": sizes})
     data["size_range"] = pd.cut(data["sizes"], bins=[0, 1, 2, 3, 5, np.inf], labels=["<1MB", "1MB-2MB", "2MB-3MB", "3MB-5MB", ">5MB"])
@@ -444,7 +460,7 @@ def generate_segmented_bar_chart(times, sizes, output_image_file_base):
     print(f"{bash_color_light_green}Segmented bar chart generated successfully.{bash_color_reset}")
 
 # LOCKED
-def generate_graphs_and_table(block_data, output_image_file_base, lower_height, upper_height):
+async def generate_graphs_and_table(block_data, output_image_file_base, lower_height, upper_height):
     categories = {
         "less_than_1MB": [],
         "1MB_to_2MB": [],
@@ -479,9 +495,11 @@ def generate_graphs_and_table(block_data, output_image_file_base, lower_height, 
         for block in block_data
     ]
 
-    generate_scatter_chart(times, sizes, colors, output_image_file_base, lower_height, upper_height)
-    generate_enhanced_scatter_chart(times, sizes, colors, output_image_file_base, lower_height, upper_height)
-    generate_segmented_bar_chart(times, sizes, output_image_file_base)
+    await asyncio.gather(
+        generate_scatter_chart(times, sizes, colors, output_image_file_base, lower_height, upper_height),
+        generate_enhanced_scatter_chart(times, sizes, colors, output_image_file_base, lower_height, upper_height),
+        generate_segmented_bar_chart(times, sizes, output_image_file_base)
+    )
 
 # LOCKED
 def default(obj):
@@ -704,7 +722,7 @@ async def main():
     print(f"{bash_color_light_green}\nFetching completed in {actual_time}. Saving data...{bash_color_reset}")
 
     # Generate graphs and table
-    generate_graphs_and_table(block_data, output_image_file_base, lower_height, upper_height)
+    await generate_graphs_and_table(block_data, output_image_file_base, lower_height, upper_height)
 
 if __name__ == "__main__":
     asyncio.run(main())
