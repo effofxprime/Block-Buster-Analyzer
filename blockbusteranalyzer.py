@@ -151,50 +151,24 @@ def check_endpoint(endpoint_type, endpoint_url):
 
 # LOCKED
 async def fetch_block_info_aiohttp(session, endpoint_url, height):
-    backoff_factor = 1.5
-    attempt = 0
-    max_retries = 5
-    while attempt < max_retries:
-        try:
-            async with session.get(f"{endpoint_url}/block?height={height}") as response:
-                response.raise_for_status()
-                return await response.json()
-        except (aiohttp.ClientError, aiohttp.http_exceptions.HttpProcessingError, aiohttp.ClientPayloadError) as e:
-            attempt += 1
-            error_message = f"Error fetching block {height} from {endpoint_url}: {e}. Attempt {attempt}. Retrying in {backoff_factor ** attempt} seconds."
-            await log_handler('error', error_message)
-            await asyncio.sleep(backoff_factor ** attempt)
-        except Exception as e:
-            attempt += 1
-            error_message = f"Unknown error fetching block {height} from {endpoint_url}: {e}. Attempt {attempt}. Retrying in {backoff_factor ** attempt} seconds."
-            await log_handler('error', error_message)
-            await asyncio.sleep(backoff_factor ** attempt)
-    await log_handler('error', f"Max retries reached for block {height}. Skipping.")
-    return None
+    try:
+        async with session.get(f"{endpoint_url}/block?height={height}") as response:
+            response.raise_for_status()
+            return await response.json()
+    except Exception as e:
+        await log_handler('error', f"Error fetching block {height} from {endpoint_url}: {e}")
+        return None
 
 # LOCKED
 async def fetch_block_info_socket(session, endpoint_url, height):
-    backoff_factor = 1.5
-    attempt = 0
-    max_retries = 5
-    while attempt < max_retries:
-        try:
-            session = requests_unixsocket.Session()
-            async with session.get(f"http+unix://{quote_plus(endpoint_url)}/block?height={height}", timeout=3) as response:
-                response.raise_for_status()
-                return await response.json()
-        except (aiohttp.ClientError, aiohttp.http_exceptions.HttpProcessingError, aiohttp.ClientPayloadError) as e:
-            attempt += 1
-            error_message = f"Error fetching block {height} from {endpoint_url}: {e}. Attempt {attempt}. Retrying in {backoff_factor ** attempt} seconds."
-            await log_handler('error', error_message)
-            await asyncio.sleep(backoff_factor ** attempt)
-        except Exception as e:
-            attempt += 1
-            error_message = f"Catch all unknown error fetching block {height} from {endpoint_url}: {e}. Attempt {attempt}. Retrying in {backoff_factor ** attempt} seconds."
-            await log_handler('error', error_message)
-            await asyncio.sleep(backoff_factor ** attempt)
-    await log_handler('error', f"Max retries reached for block {height}. Skipping.")
-    return None
+    try:
+        session = requests_unixsocket.Session()
+        async with session.get(f"http+unix://{quote_plus(endpoint_url)}/block?height={height}") as response:
+            response.raise_for_status()
+            return await response.json()
+    except Exception as e:
+        await log_handler('error', f"Error fetching block {height} from {endpoint_url}: {e}")
+        return None
 
 # LOCKED
 async def get_progress_indicator(total, description):
@@ -262,8 +236,8 @@ def parse_timestamp(timestamp):
 # LOCKED
 async def process_block(height, endpoint_type, endpoint_url, semaphore):
     backoff_factor = 1.5
-    attempt = 0
     max_retries = 5
+    attempt = 0
     while attempt < max_retries:
         async with semaphore:
             try:
@@ -272,6 +246,7 @@ async def process_block(height, endpoint_type, endpoint_url, semaphore):
                         block_info = await fetch_block_info_aiohttp(session, endpoint_url, height)
                     else:
                         block_info = await fetch_block_info_socket(session, endpoint_url, height)
+
                 if block_info is None:
                     attempt += 1
                     await asyncio.sleep(backoff_factor ** attempt)
@@ -293,6 +268,38 @@ async def process_block(height, endpoint_type, endpoint_url, semaphore):
     await log_handler('error', f"Max retries reached for block {height}. Skipping.")
     return None
 
+# LOCKED
+async def retry_failed_blocks(failed_heights, connection_type, endpoint_url, semaphore, tqdm_progress):
+    retries = 0
+    max_retries = 5
+    backoff_factor = 1.5
+    while failed_heights and retries < max_retries:
+        retries += 1
+        await log_handler('info', f"Retrying {len(failed_heights)} failed blocks. Attempt {retries}")
+        retry_tasks = [process_block(height, connection_type, endpoint_url, semaphore) for height in failed_heights]
+        new_failed_heights = []
+        for future in asyncio.as_completed(retry_tasks):
+            try:
+                result = await future
+                if result:
+                    block = json_structure({"height": result["height"], "size": result["size"], "time": result["time"]})
+                    block_data.append(block)
+                    async with aiofiles.open(json_file_path, 'a') as f:
+                        await f.write(', ' + json.dumps(block, default=default))
+                    tqdm_progress.update(1)
+                else:
+                    new_failed_heights.append(result["height"])
+            except Exception as e:
+                new_failed_heights.append(result["height"])
+                error_message = f"Error processing retry result: {e}"
+                await log_handler('error', error_message)
+        failed_heights = new_failed_heights
+        if failed_heights:
+            await asyncio.sleep(backoff_factor ** retries)
+    if failed_heights:
+        await log_handler('error', f"Max retries reached for some blocks. Heights: {failed_heights}")
+    else:
+        await log_handler('info', "All blocks fetched successfully.")
 
 # LOCKED
 # Signal handling improvements for graceful shutdown with async operations
@@ -504,7 +511,7 @@ async def read_json_file(json_file_path, semaphore):
 
 # LOCKED
 async def main():
-    global log_file, json_file_path
+    global log_file, json_file_path, block_data
     global shutdown_event
     shutdown_event = asyncio.Event()
 
@@ -641,6 +648,8 @@ async def main():
     heights = range(lower_height, upper_height + 1)
     tqdm_progress = await get_progress_indicator(len(heights), "Fetching Blocks")
     async with aiofiles.open(json_file_path, 'w') as f:
+        await f.write('[')  # Start JSON array
+        first_block = True
         tasks = [process_block(height, connection_type, endpoint_url, semaphore) for height in heights]
         for future in asyncio.as_completed(tasks):
             if shutdown_event.is_set():
@@ -652,33 +661,22 @@ async def main():
                 if result:
                     block = json_structure({"height": result["height"], "size": result["size"], "time": result["time"]})
                     block_data.append(block)
-                    await f.write(json.dumps(block, default=default) + '\n')
+                    if not first_block:
+                        await f.write(', ')
+                    await f.write(json.dumps(block, default=default))
+                    first_block = False
                 else:
                     failed_heights.append(height)
             except Exception as e:
+                failed_heights.append(height)
                 error_message = f"Error processing future result: {e}"
                 await log_handler('error', error_message)
 
             tqdm_progress.update(1)
+        await f.write(']')  # End JSON array
 
     # Retry fetching failed blocks
-    if failed_heights:
-        await log_handler('info', f"Retrying {len(failed_heights)} failed blocks...")
-        retry_tasks = [process_block(height, connection_type, endpoint_url, semaphore) for height in failed_heights]
-        for future in asyncio.as_completed(retry_tasks):
-            if shutdown_event.is_set():
-                await log_handler('info', "Shutdown event detected. Exiting.")
-                print(f"{bash_color_red}Shutdown event detected. Exiting...{bash_color_reset}")
-                break
-            try:
-                result = await future
-                if result:
-                    block = json_structure({"height": result["height"], "size": result["size"], "time": result["time"]})
-                    block_data.append(block)
-                    await f.write(json.dumps(block, default=default) + '\n')
-            except Exception as e:
-                error_message = f"Error processing retry result: {e}"
-                await log_handler('error', error_message)
+    await retry_failed_blocks(failed_heights, connection_type, endpoint_url, semaphore)
 
     tqdm_progress.close()
     print("\n")
@@ -692,9 +690,6 @@ async def main():
     actual_time = end_time - start_time
     await log_handler('info', f"Fetching completed in {actual_time}. Saving data.")
     print(f"{bash_color_light_green}\nFetching completed in {actual_time}. Saving data...{bash_color_reset}")
-
-    # Save data incrementally
-    await save_data_incrementally_async(block_data, json_file_path)
 
     # Generate graphs and table
     generate_graphs_and_table(block_data, output_image_file_base, lower_height, upper_height)
