@@ -256,11 +256,14 @@ async def process_block(height, endpoint_type, endpoint_url, semaphore):
 
                 block_size = len(json.dumps(block_info))
                 block_size_mb = block_size / 1048576
-                block_time = parse_timestamp(block_info['result']['block']['header']['time'])
+                block_time = block_info['result']['block']['header']['time']
+                parsed_time = parse_timestamp(block_time)
+                if parsed_time is None:
+                    raise ValueError(f"Invalid time format for block {height}")
                 return {
                     "height": height,
                     "size": block_size_mb,
-                    "time": block_time
+                    "time": parsed_time.isoformat()
                 }
             except Exception as e:
                 attempt += 1
@@ -471,16 +474,26 @@ def generate_graphs_and_table(block_data, output_image_file_base, lower_height, 
 
     print(tabulate(table, headers="firstrow", tablefmt="grid"))
 
-    times = [block["time"] for block in block_data]
-    sizes = [block["size"] for block in block_data]
-    colors = [
-        py_color_green if block["size"] < 1 else
-        py_color_yellow if 1 <= block["size"] < 2 else
-        py_color_orange if 2 <= block["size"] < 3 else
-        py_color_red if 3 <= block["size"] < 5 else
-        py_color_magenta
-        for block in block_data
-    ]
+    times = []
+    sizes = []
+    colors = []
+
+    for block in block_data:
+        try:
+            time = parse_timestamp(block["time"])
+            if time is None:
+                raise ValueError(f"Invalid time format for block {block['height']}")
+            times.append(time)
+            sizes.append(block["size"])
+            colors.append(
+                py_color_green if block["size"] < 1 else
+                py_color_yellow if 1 <= block["size"] < 2 else
+                py_color_orange if 2 <= block["size"] < 3 else
+                py_color_red if 3 <= block["size"] < 5 else
+                py_color_magenta
+            )
+        except ValueError as e:
+            await log_handler('error', f"ValueError for block {block['height']}: {e}")
 
     generate_scatter_chart(times, sizes, colors, output_image_file_base, lower_height, upper_height)
     generate_enhanced_scatter_chart(times, sizes, colors, output_image_file_base, lower_height, upper_height)
