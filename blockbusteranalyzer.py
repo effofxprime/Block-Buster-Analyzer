@@ -493,7 +493,7 @@ def generate_graphs_and_table(block_data, output_image_file_base, lower_height, 
                 py_color_magenta
             )
         except ValueError as e:
-            await log_handler('error', f"ValueError for block {block['height']}: {e}")
+            asyncio.run(log_handler('error', f"ValueError for block {block['height']}: {e}"))
 
     generate_scatter_chart(times, sizes, colors, output_image_file_base, lower_height, upper_height)
     generate_enhanced_scatter_chart(times, sizes, colors, output_image_file_base, lower_height, upper_height)
