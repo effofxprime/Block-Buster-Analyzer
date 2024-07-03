@@ -86,9 +86,9 @@ The script will output the block sizes in JSON format and generate various graph
 
 ### Generated Graphs
 
-![Scatter Chart](images/block_sizes_5000000_to_5001000_20240628_190503_scatter_chart.png)
-![Scatter Chart](images/block_sizes_5000000_to_5001000_20240628_190503_enhanced_scatter_chart.png)
-![Scatter Chart](images/block_sizes_5000000_to_5001000_20240628_190503_segmented_bar_chart.png)
+![Scatter Chart](images/scatter.png)
+![Enhanced Scatter Chart](images/e-scatter.png)
+![Bar Chart](images/bar.png)
 
 ## Contributing
 
